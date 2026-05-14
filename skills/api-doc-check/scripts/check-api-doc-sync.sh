@@ -27,14 +27,9 @@ declare -A HEADER_DOC_MAP=(
     ["frameworks/connectivity/bluetooth/framework/include/bt_hfp_hf.h"]="docs/zh-cn/api/framework/bluetooth/bt_hfp.md"
     ["frameworks/connectivity/bluetooth/framework/include/bt_hfp_ag.h"]="docs/zh-cn/api/framework/bluetooth/bt_hfp.md"
     ["frameworks/connectivity/bluetooth/framework/include/bt_hfp.h"]="docs/zh-cn/api/framework/bluetooth/bt_hfp.md"
-    ["frameworks/connectivity/bluetooth/framework/include/bt_avrcp.h"]="docs/zh-cn/api/framework/bluetooth/bt_avrcp.md"
-    ["frameworks/connectivity/bluetooth/framework/include/bt_avrcp_control.h"]="docs/zh-cn/api/framework/bluetooth/bt_avrcp.md"
-    ["frameworks/connectivity/bluetooth/framework/include/bt_avrcp_target.h"]="docs/zh-cn/api/framework/bluetooth/bt_avrcp.md"
     ["frameworks/connectivity/bluetooth/framework/include/bt_hid_device.h"]="docs/zh-cn/api/framework/bluetooth/bt_hid.md"
     ["frameworks/connectivity/bluetooth/framework/include/bt_pan.h"]="docs/zh-cn/api/framework/bluetooth/bt_pan.md"
     ["frameworks/connectivity/bluetooth/framework/include/bt_spp.h"]="docs/zh-cn/api/framework/bluetooth/bt_spp.md"
-    ["frameworks/connectivity/bluetooth/framework/include/bt_le_scan.h"]="docs/zh-cn/api/framework/bluetooth/bt_le_scan.md"
-    ["frameworks/connectivity/bluetooth/framework/include/bt_le_advertiser.h"]="docs/zh-cn/api/framework/bluetooth/bt_le_advertiser.md"
     ["frameworks/connectivity/bluetooth/framework/include/bt_cs.h"]="docs/zh-cn/api/framework/bluetooth/bt_cs.md"
 
     # ========== 多媒体 ==========
