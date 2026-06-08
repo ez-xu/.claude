@@ -6,16 +6,26 @@
 
 ## 技能列表
 
-| 技能 | 说明 |
-|------|------|
-| [codesize](skills/codesize/) | 分析固件二进制大小，支持多核/多架构（ARM/Xtensa/RISC-V） |
-| [executor](skills/executor/) | 管理持久化交互式 CLI 进程（REPL、调试器、QEMU、NuttX 模拟器） |
-| [kconfig-tweak](skills/kconfig-tweak/) | 命令行修改 NuttX/Linux .config 文件，无需交互式 menuconfig |
-| [memdump](skills/memdump/) | 分析 NuttX 运行时 memdump 日志，检测内存泄漏和高消耗模块 |
-| [pcm-audio](skills/pcm-audio/) | 分析 PCM 音频质量问题 — 削波、静音、爆音、底噪、周期性失真 |
-| [skill-creator](skills/skill-creator/) | 创建新技能的指南，扩展 AI 助手能力 |
-| [tmux](skills/tmux/) | 远程控制 tmux 会话，用于交互式 CLI（python、gdb 等） |
-| [openvela-quickstart](skills/openvela-quickstart/) | openvela 开发环境一键搭建 — 环境检测、依赖安装、智能选源、编译运行模拟器 |
+| 技能                                                         | 说明                                                                                                            |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| [codesize](skills/codesize/)                                 | 分析固件二进制大小，支持多核/多架构（ARM/Xtensa/RISC-V）                                                        |
+| [executor](skills/executor/)                                 | 管理持久化交互式 CLI 进程（REPL、调试器、QEMU、NuttX 模拟器）                                                   |
+| [kconfig-tweak](skills/kconfig-tweak/)                       | 命令行修改 NuttX/Linux .config 文件，无需交互式 menuconfig                                                      |
+| [memdump](skills/memdump/)                                   | 分析 NuttX 运行时 memdump 日志，检测内存泄漏和高消耗模块                                                        |
+| [pcm-audio](skills/pcm-audio/)                               | 分析 PCM 音频质量问题 — 削波、静音、爆音、底噪、周期性失真                                                      |
+| [skill-creator](skills/skill-creator/)                       | 创建新技能的指南，扩展 AI 助手能力                                                                              |
+| [tmux](skills/tmux/)                                         | 远程控制 tmux 会话，用于交互式 CLI（python、gdb 等）                                                            |
+| [openvela-quickstart](skills/openvela-quickstart/)           | openvela 开发环境一键搭建 — 环境检测、依赖安装、智能选源、编译运行模拟器                                        |
+| [openvela-build](skills/openvela-build/)                     | openvela 固件编译、配置（menuconfig）与模拟器运行，含编译报错修复                                               |
+| [nuttx-driver-development](skills/nuttx-driver-development/) | 创建/更新/审查 NuttX 设备驱动，覆盖 sensor、char、network、fb/LCD、USB、audio、电源电池、MCAL、I2C/SPI 等子系统 |
+| [driver-code-reviewer](skills/driver-code-reviewer/)         | NuttX/Vela 驱动代码质量审查（59 Pattern + 双轮交叉验证 + 量化评分）                                             |
+| [submit-pr](skills/submit-pr/)                               | 通过 Fork 模式向 openvela 社区（GitHub/Gitee）提交 Pull Request，支持单/多仓库批量提交                          |
+
+## Agent 列表
+
+| Agent                                              | 说明                                                                                                                            |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| [driver-workflow](agents/driver-workflow.agent.md) | NuttX 驱动开发端到端工作流 Agent，覆盖新驱动开发、改进现有驱动、代码审查、测试生成四种模式（6 步流程 / 3 次交互，从需求到提交） |
 
 ## 快速开始
 
