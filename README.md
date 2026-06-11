@@ -20,6 +20,7 @@ AI-powered development skills for [openvela](https://github.com/open-vela) (Nutt
 | [nuttx-driver-development](skills/nuttx-driver-development/) | Create/update/review NuttX device drivers — sensor, char, network, fb/LCD, USB, audio, power/battery, MCAL, I2C/SPI subsystems |
 | [driver-code-reviewer](skills/driver-code-reviewer/)         | NuttX/Vela driver code-quality review (59 patterns + two-pass cross-validation + quantitative scoring)                         |
 | [submit-pr](skills/submit-pr/)                               | Submit Pull Requests to the openvela community (GitHub/Gitee) via fork mode, with single/multi-repo batch support              |
+| [contest-log-collector](skills/contest-log-collector/)       | openvela AI Contest log auto-collector (OpenCode/Claude Code/Codex/AIoT-IDE — zero-config session capture)                     |
 
 ## Agents
 
