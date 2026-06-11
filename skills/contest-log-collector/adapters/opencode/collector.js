@@ -20,7 +20,7 @@ import { platform, homedir } from "os";
 import { execFileSync } from "child_process";
 import { resolveGithubLogin } from "../shared/get_github_login.js";
 
-const VERSION = "1.2.0";
+const VERSION = "1.2.1";
 const SCHEMA_VERSION = "1.0";
 const TOOL_ID = "opencode";
 
@@ -420,18 +420,24 @@ async function autoCommitAndPush(repoRoot, memberDir, githubLogin) {
     return { skipped: false, ok: false, stage: "commit" };
   }
 
-  let push = gitExec(["push", "origin", "HEAD"], repoRoot);
+  const branchProbe = gitExec(["symbolic-ref", "--short", "HEAD"], repoRoot);
+  const branch = (branchProbe.out || "").trim();
+  if (branchProbe.code !== 0 || !branch) {
+    reportError(memberDir, "git_push", { msg },
+      { message: "detached HEAD or rebase in progress; refusing to push" });
+    return { skipped: false, ok: false, stage: "push" };
+  }
+
+  const refspec = `HEAD:refs/heads/${branch}`;
+  let push = gitExec(["push", "origin", refspec], repoRoot);
   if (push.code !== 0) {
-    // Concurrent multi-member push: another member pushed first => non-fast-forward;
-    // each member only touches logs/<own-login>/, so pull --rebase will not conflict; retry once.
-    const rebase = gitExec(["pull", "--rebase", "--autostash", "origin", "HEAD"], repoRoot);
+    const rebase = gitExec(["pull", "--rebase", "--autostash", "origin", branch], repoRoot);
     if (rebase.code === 0) {
-      push = gitExec(["push", "origin", "HEAD"], repoRoot);
+      push = gitExec(["push", "origin", refspec], repoRoot);
     }
   }
   if (push.code !== 0) {
     reportError(memberDir, "git_push", { msg }, { message: push.err });
-    // Do not update stamp on push failure so the next idle event auto-retries.
     return { skipped: false, ok: false, stage: "push" };
   }
 

@@ -148,6 +148,11 @@ cp "$SOURCE_ROOT/tools/validate-log.py" tools/validate-log.py
 chmod +x tools/render-log.py tools/validate-log.py
 echo "✅ tools/render-log.py + tools/validate-log.py (for local judge review)"
 
+mkdir -p schema
+cp "$SOURCE_ROOT/schema/event.schema.json" schema/event.schema.json
+cp "$SOURCE_ROOT/schema/manifest.schema.json" schema/manifest.schema.json
+echo "✅ schema/event.schema.json + schema/manifest.schema.json (required by validate-log.py)"
+
 cp "$SOURCE_ROOT/onboarding/JUDGE_GUIDE.md" JUDGE_GUIDE.md
 echo "✅ JUDGE_GUIDE.md (judge guide, at contestant repo root)"
 
@@ -182,7 +187,7 @@ cat > .claude/contest-settings.snippet.json <<'SETTINGS_EOF'
 SETTINGS_EOF
 echo "✅ .claude/contest-settings.snippet.json (manual merge required)"
 
-GITIGNORE_ENTRIES=("logs/.last_push" "logs/.cache/" "logs/*.tmp" ".opencode/plugins/.last_auto_commit")
+GITIGNORE_ENTRIES=("logs/**/.last_push" "logs/**/.cache/" "logs/**/*.tmp" ".opencode/plugins/.last_auto_commit")
 [ -f .gitignore ] || touch .gitignore
 for entry in "${GITIGNORE_ENTRIES[@]}"; do
   if ! grep -qxF "$entry" .gitignore; then
