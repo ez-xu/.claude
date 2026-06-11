@@ -1,49 +1,49 @@
-# Judge's Guide for Reading `logs/`
+# 评委指南 — 如何阅读 `logs/`
 
-<!-- install.sh copies this file to the contestant repo root as JUDGE_GUIDE.md -->
+<!-- install.sh 会把本文件复制到选手仓根目录,文件名 JUDGE_GUIDE.md -->
 
-## TL;DR
+## 快速上手
 
 ```bash
-# 1. Clone the contestant repo
+# 1. clone 选手仓
 git clone https://github.com/<contest-org>/<demo-repo>
 cd <demo-repo>
 
-# 2. View all sessions for a member (terminal, colored)
+# 2. 终端预览某位组员的全部 session (彩色)
 python3 tools/render-log.py logs/<github_login>/
 
-# 3. Generate an HTML report for a single session (open in browser)
+# 3. 生成单个 session 的 HTML 评分报告 (浏览器打开)
 python3 tools/render-log.py \
   logs/<github_login>/<date>/<tool>__<session_id>.jsonl \
   --format html --out report.html
 ```
 
-## Repository layout
+## 仓库结构
 
 ```
 <demo-repo>/
-├─ src/                  # contestant work
+├─ src/                  # 选手作品代码
 ├─ logs/
-│  ├─ <github_login_a>/  # all sessions for member A
-│  │  ├─ manifest.json   # member A's index
+│  ├─ <组员A_github_login>/    # 组员 A 的全部 session
+│  │  ├─ manifest.json         # 组员 A 的索引文件
 │  │  └─ <date>/<tool>__<session_id>.jsonl
-│  └─ <github_login_b>/  # member B, same structure
+│  └─ <组员B_github_login>/    # 组员 B,目录结构相同
 └─ tools/
-   ├─ render-log.py      # render JSONL to terminal / Markdown / HTML
-   └─ validate-log.py    # tamper-detection (seq monotonicity, cross-field consistency)
+   ├─ render-log.py      # JSONL → 终端 / Markdown / HTML 渲染
+   └─ validate-log.py    # 防作弊校验 (seq 单调性 + 跨字段一致性)
 ```
 
-## Validate data integrity (run on suspect teams)
+## 数据合规校验 (怀疑选手改过 log 时使用)
 
 ```bash
 python3 tools/validate-log.py logs/
 
-# ALL OK     => data is compliant
-# ERRORS     => this team may have modified logs
-#               (seq gaps, team_id mismatch, etc.)
+# ALL OK     => 数据合规
+# ERRORS     => 该队可能改过 logs
+#               (seq 缺号 / team_id 不一致 / manifest 与文件对不上 等)
 ```
 
-## Batch-generate HTML reports (grading workflow)
+## 批量生成评分报告 (打分工作流)
 
 ```bash
 for member in logs/*/; do
@@ -51,21 +51,21 @@ for member in logs/*/; do
   python3 tools/render-log.py "$member" \
     --format html --out reports/$login.html
 done
-# Browse each HTML in reports/ to grade members one by one.
+# 逐个打开 reports/ 下的 HTML,按组员打分
 ```
 
-## Data contract (fields judges care about)
+## 数据契约 (评委关心的字段)
 
-Every JSONL event contains:
+每条 JSONL 事件包含:
 
-- `seq`           — monotonically increasing per session. **Gaps or duplicates indicate suspicious data.**
+- `seq`           — session 内单调递增。**缺号或重复即数据可疑**
 - `role`          — user / assistant / tool / system
 - `tool`          — opencode / claude-code / codex / kiro
-- `text`          — message content (full, never truncated)
-- `thinking`      — AI reasoning (when exposed by the tool)
-- `tool_name` / `tool_call_id` / `input` / `output` — full tool-call chain (read / edit / bash, etc.)
-- `model`         — model in use
-- `tokens_in` / `tokens_out` — token usage
-- `redacted_count` — number of auto-redactions (API keys, tokens)
+- `text`          — 消息正文 (完整保留,无截断)
+- `thinking`      — AI 思考过程 (工具暴露时)
+- `tool_name` / `tool_call_id` / `input` / `output` — 完整工具调用链 (read / edit / bash 等)
+- `model`         — 使用的模型
+- `tokens_in` / `tokens_out` — token 用量
+- `redacted_count` — 自动脱敏次数 (API key / token)
 
-`manifest.json` top-level fields: `team_id` / `github_login` / `sessions[]`. These must be consistent across all files.
+`manifest.json` 顶层字段: `team_id` / `github_login` / `sessions[]`。这些字段在所有文件间必须一致。
