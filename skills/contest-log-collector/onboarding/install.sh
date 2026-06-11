@@ -187,7 +187,7 @@ cat > .claude/contest-settings.snippet.json <<'SETTINGS_EOF'
 SETTINGS_EOF
 echo "✅ .claude/contest-settings.snippet.json (manual merge required)"
 
-GITIGNORE_ENTRIES=("logs/**/.last_push" "logs/**/.cache/" "logs/**/*.tmp" ".opencode/plugins/.last_auto_commit")
+GITIGNORE_ENTRIES=("logs/**/.cache/" "logs/**/*.tmp")
 [ -f .gitignore ] || touch .gitignore
 for entry in "${GITIGNORE_ENTRIES[@]}"; do
   if ! grep -qxF "$entry" .gitignore; then
@@ -200,7 +200,6 @@ if [ ! -f .env ]; then
   cat > .env <<EOF
 TEAM_ID=$TEAM_ID_FINAL
 GITHUB_LOGIN=$GITHUB_LOGIN_FINAL
-LOG_PUSH_INTERVAL=60
 EOF
   echo "✅ .env created (TEAM_ID=$TEAM_ID_FINAL, GITHUB_LOGIN=$GITHUB_LOGIN_FINAL)"
 else
@@ -301,6 +300,9 @@ echo ""
 echo "4. Verify the install:"
 echo "   bash $SOURCE_ROOT/onboarding/verify-setup.sh"
 echo ""
-echo "5. Start working with AI. Logs auto-push to logs/<date>/<tool>__<sid>.jsonl"
+echo "5. Start working with AI. Sessions are auto-saved into:"
+echo "     logs/<github_login>/<date>/<tool>__<sid>.jsonl"
+echo "   The collector ONLY writes files. Commit and push the logs/"
+echo "   directory together with your normal code changes."
 echo "   (Global hook covers any cwd; in-repo hook is the fast path.)"
 echo ""

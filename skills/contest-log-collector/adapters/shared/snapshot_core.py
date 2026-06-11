@@ -11,7 +11,7 @@
 #   echo "$STDIN_JSON" | python3 snapshot_core.py --tool codex
 #
 # Required env: TEAM_ID
-# Optional env: SESSION_LOG_DIR / LOG_PUSH_INTERVAL / LOG_FALLBACK_EMAIL
+# Optional env: SESSION_LOG_DIR
 #
 # Exit codes:
 #   0  Success (including throttled skips)
@@ -317,70 +317,6 @@ def get_fallback_author() -> tuple[str, str]:
     return "contest-collector", "contest-collector@auto-commit.local"
 
 
-def auto_commit_push(repo_root: Path, member_dir: Path, team_id: str, github_login: str, tool: str) -> dict:
-    push_interval = int(os.environ.get("LOG_PUSH_INTERVAL", "60"))
-    stamp = member_dir / ".last_push"
-    now = datetime.now(timezone.utc).timestamp()
-    last = 0.0
-    try:
-        last = float(stamp.read_text().strip()) if stamp.exists() else 0.0
-    except Exception:
-        last = 0.0
-    if now - last < push_interval:
-        return {"skipped": True, "reason": "throttle"}
-
-    def git(*args, env=None) -> tuple[int, str, str]:
-        try:
-            r = subprocess.run(["git", *args], cwd=str(repo_root), capture_output=True, text=True, env=env)
-            return r.returncode, r.stdout.strip(), r.stderr.strip()
-        except Exception as e:
-            return 1, "", str(e)
-
-    code, out, err = git("status", "--porcelain")
-    if code != 0:
-        report_error(member_dir, "git_status", {"tool": tool, "repo": str(repo_root)}, err)
-        return {"skipped": True, "reason": "status_failed"}
-    if not out:
-        try:
-            stamp.write_text(str(now))
-        except Exception:
-            pass
-        return {"skipped": True, "reason": "no_changes"}
-
-    git("add", "-A")
-    msg = f"[session-log] {team_id} {github_login} {iso_now()}"
-    code, _, err = git("commit", "-m", msg, "--allow-empty")
-    if code != 0 and "tell me who you are" in err:
-        name, email = get_fallback_author()
-        env = {**os.environ, "GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": email,
-               "GIT_COMMITTER_NAME": name, "GIT_COMMITTER_EMAIL": email}
-        code, _, err = git("commit", "-m", msg, "--allow-empty", env=env)
-    if code != 0:
-        report_error(member_dir, "git_commit", {"tool": tool, "msg": msg}, err)
-        return {"skipped": False, "ok": False, "stage": "commit"}
-
-    bcode, branch, _ = git("symbolic-ref", "--short", "HEAD")
-    if bcode != 0 or not branch:
-        report_error(member_dir, "git_push", {"tool": tool, "msg": msg},
-                     "detached HEAD or rebase in progress; refusing to push")
-        return {"skipped": False, "ok": False, "stage": "push"}
-
-    code, _, err = git("push", "origin", f"HEAD:refs/heads/{branch}")
-    if code != 0:
-        rcode, _, _ = git("pull", "--rebase", "--autostash", "origin", branch)
-        if rcode == 0:
-            code, _, err = git("push", "origin", f"HEAD:refs/heads/{branch}")
-    if code != 0:
-        report_error(member_dir, "git_push", {"tool": tool, "msg": msg}, err)
-        return {"skipped": False, "ok": False, "stage": "push"}
-
-    try:
-        stamp.write_text(str(now))
-    except Exception:
-        pass
-    return {"skipped": False, "ok": True}
-
-
 def process_claude_stdin(stdin_data: dict, tool: str, team_id: str) -> int:
     """Claude Code Stop / SessionEnd hook stdin payload format:
         {
@@ -500,11 +436,10 @@ def process_claude_stdin(stdin_data: dict, tool: str, team_id: str) -> int:
 
     write_manifest(member_dir, manifest, team_id, github_login, tool)
 
-    push_result = auto_commit_push(repo_root, member_dir, team_id, github_login, tool)
-    if not push_result.get("skipped") and not push_result.get("ok"):
-        if entry:
-            entry["health"] = "degraded"
-        write_manifest(member_dir, manifest, team_id, github_login, tool)
+    sys.stderr.write(
+        f"[session-log] captured {result['written']} event(s) -> {rel_path} "
+        f"(remember to 'git add logs/' when committing)\n"
+    )
 
     return 0
 

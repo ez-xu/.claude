@@ -1,17 +1,17 @@
 ---
 name: contest-log-collector
-description: "为 openvela AI 大赛自动归集 AI Coding 日志。监听 AI 工具 (OpenCode / Claude Code / Codex / AIoT-IDE) 的 session 结束事件,自动把对话 trace 转成 JSONL,写入 logs/<github_login>/<date>/,并 git auto-commit + push 到选手 demo 仓。组委会建仓时通过 onboarding/install.sh 预装到选手仓,选手零配置无感使用。Trigger: 大赛 AI 日志收集、contest log、AI Coding 日志、session 采集、对话归档、AIoT-IDE log。"
+description: "为 openvela AI 大赛自动归集 AI Coding 日志。监听 AI 工具 (OpenCode / Claude Code / Codex / AIoT-IDE) 的 session 结束事件,把对话 trace 转成 JSONL,写入选手仓的 logs/<github_login>/<date>/。collector 只写文件不动 git,选手 commit 代码时跟 logs/ 一起 push 即可。组委会建仓时通过 onboarding/install.sh 预装到选手仓,选手零配置无感使用。Trigger: 大赛 AI 日志收集、contest log、AI Coding 日志、session 采集、对话归档、AIoT-IDE log。"
 ---
 
 # Contest Log Collector — openvela AI 大赛 AI Coding 日志采集
 
-为 openvela AI 大赛提供 AI Coding 日志自动归集能力。组委会建仓时预装,选手在 AI 工具(Claude Code / AIoT-IDE / OpenCode / Codex)中正常工作即可,日志自动落到 `logs/<github_login>/` 并 push 到选手仓。
+为 openvela AI 大赛提供 AI Coding 日志自动归集能力。组委会建仓时预装,选手在 AI 工具(Claude Code / AIoT-IDE / OpenCode / Codex)中正常工作,日志自动落到 `logs/<github_login>/`,选手 push 自己代码时一起带上仓即可。
 
 ## 核心承诺
 
 实现大赛参赛代码提交指南中的关键承诺:
 
-> AI Coding 日志由预置插件自动归集到仓库的 `logs/` 目录,无需手动整理或打包
+> AI Coding 日志由预置插件自动归集到仓库的 `logs/` 目录,无需手动整理或打包。选手 `git commit && git push` 自己代码时,`logs/` 跟代码一起上去就行。
 
 ## 目录结构
 
@@ -70,11 +70,9 @@ git push
 2. 启动 AI 工具 (Claude Code / AIoT-IDE / OpenCode / Codex)
 3. 跟 AI 协作开发
 
-日志会自动:
+日志会自动写入 `logs/<github_login>/<date>/<tool>__<sid>.jsonl`。collector 只写文件,**不会自动 commit 或 push**。选手按官方代码提交流程正常 `git add . && git commit && git push` 时,`logs/` 跟自己的代码一起上去即可。
 
-- 写入 `logs/<github_login>/<date>/<tool>__<sid>.jsonl`
-- 每 60 秒(节流)自动 git commit + push 到 demo 仓
-- push 失败时下次 hook 触发自动 `git pull --rebase` 重试 (并发安全)
+`git add .` 默认会包含 `logs/` 目录,无需手动指定。如果选手用 `git add <specific-files>` 精确暂存,记得也加上 `git add logs/`。
 
 ## 评委使用
 
@@ -114,7 +112,7 @@ JSONL 每条事件必含字段:
 - **无截断**: 大赛跨度长,所有内容完整保留以支持后期分析
 - **错误可观察**: 失败写 `errors/<ts>.err`,不静默吞
 - **TEAM_ID 缺失主动拒绝**: 防止数据归属错乱
-- **并发 push 安全**: 多人组并发时 `git pull --rebase --autostash` 重试
+- **多人组队天然安全**: collector 只写 `logs/<github_login>/<own>` 自己的目录,组员之间互不干扰;commit 时各自 `git add logs/<own_login>/` 即可
 
 ## 工具兼容性
 
