@@ -33,7 +33,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from get_github_login import resolve_github_login
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 SCHEMA_VERSION = "1.0"
 
 DEFAULT_REDACT_RULES = [
@@ -359,15 +359,18 @@ def auto_commit_push(repo_root: Path, member_dir: Path, team_id: str, github_log
         report_error(member_dir, "git_commit", {"tool": tool, "msg": msg}, err)
         return {"skipped": False, "ok": False, "stage": "commit"}
 
-    code, _, err = git("push", "origin", "HEAD")
+    bcode, branch, _ = git("symbolic-ref", "--short", "HEAD")
+    if bcode != 0 or not branch:
+        report_error(member_dir, "git_push", {"tool": tool, "msg": msg},
+                     "detached HEAD or rebase in progress; refusing to push")
+        return {"skipped": False, "ok": False, "stage": "push"}
+
+    code, _, err = git("push", "origin", f"HEAD:refs/heads/{branch}")
     if code != 0:
-        # Concurrent multi-member: another member pushed first => non-fast-forward.
-        # Each member only touches logs/<own-login>/; pull --rebase has no conflict; retry once.
-        rcode, _, _ = git("pull", "--rebase", "--autostash", "origin", "HEAD")
+        rcode, _, _ = git("pull", "--rebase", "--autostash", "origin", branch)
         if rcode == 0:
-            code, _, err = git("push", "origin", "HEAD")
+            code, _, err = git("push", "origin", f"HEAD:refs/heads/{branch}")
     if code != 0:
-        # Do not update stamp on push failure so the next event auto-retries
         report_error(member_dir, "git_push", {"tool": tool, "msg": msg}, err)
         return {"skipped": False, "ok": False, "stage": "push"}
 
@@ -417,6 +420,13 @@ def process_claude_stdin(stdin_data: dict, tool: str, team_id: str) -> int:
         return 1
 
     if not transcript_path_str:
+        # OpenCode 1.15+ shares .claude/settings.json hooks; bridged events have no transcript and are handled by the OpenCode plugin instead.
+        if stdin_data.get("hook_source") == "opencode-plugin":
+            sys.stderr.write(
+                "[session-log] skipping OpenCode-bridged hook event "
+                "(handled by OpenCode plugin)\n"
+            )
+            return 0
         report_error(member_dir, "no_transcript_path", {"tool": tool, "session_id": session_id, "stdin": stdin_data},
                      "stdin payload missing transcript_path")
         return 1

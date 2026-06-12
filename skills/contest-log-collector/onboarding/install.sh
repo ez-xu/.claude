@@ -148,6 +148,11 @@ cp "$SOURCE_ROOT/tools/validate-log.py" tools/validate-log.py
 chmod +x tools/render-log.py tools/validate-log.py
 echo "✅ tools/render-log.py + tools/validate-log.py (for local judge review)"
 
+mkdir -p schema
+cp "$SOURCE_ROOT/schema/event.schema.json" schema/event.schema.json
+cp "$SOURCE_ROOT/schema/manifest.schema.json" schema/manifest.schema.json
+echo "✅ schema/event.schema.json + schema/manifest.schema.json (required by validate-log.py)"
+
 cp "$SOURCE_ROOT/onboarding/JUDGE_GUIDE.md" JUDGE_GUIDE.md
 echo "✅ JUDGE_GUIDE.md (judge guide, at contestant repo root)"
 
@@ -182,7 +187,7 @@ cat > .claude/contest-settings.snippet.json <<'SETTINGS_EOF'
 SETTINGS_EOF
 echo "✅ .claude/contest-settings.snippet.json (manual merge required)"
 
-GITIGNORE_ENTRIES=("logs/.last_push" "logs/.cache/" "logs/*.tmp" ".opencode/plugins/.last_auto_commit")
+GITIGNORE_ENTRIES=("logs/**/.last_push" "logs/**/.cache/" "logs/**/*.tmp" ".opencode/plugins/.last_auto_commit")
 [ -f .gitignore ] || touch .gitignore
 for entry in "${GITIGNORE_ENTRIES[@]}"; do
   if ! grep -qxF "$entry" .gitignore; then
@@ -215,6 +220,67 @@ else
   done
 fi
 
+USER_CLAUDE_DIR="${HOME}/.claude"
+USER_CONTEST_DIR="$USER_CLAUDE_DIR/contest-shared"
+mkdir -p "$USER_CLAUDE_DIR" "$USER_CONTEST_DIR"
+cp "$SOURCE_ROOT/adapters/shared/snapshot_core.py" "$USER_CONTEST_DIR/snapshot_core.py"
+cp "$SOURCE_ROOT/adapters/shared/get_github_login.py" "$USER_CONTEST_DIR/get_github_login.py"
+
+cat > "$USER_CONTEST_DIR/contest-snapshot.sh" <<'GLOBAL_HOOK_EOF'
+#!/usr/bin/env bash
+set -eu
+
+STDIN="$(cat)"
+CWD="$(printf '%s' "$STDIN" | python3 -c 'import json,sys
+try:
+  d=json.loads(sys.stdin.read());print(d.get("cwd",""))
+except Exception: pass' 2>/dev/null || true)"
+[ -z "$CWD" ] && CWD="$PWD"
+
+REPO_ROOT="$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || true)"
+[ -z "$REPO_ROOT" ] || [ ! -f "$REPO_ROOT/.env" ] && exit 0
+
+TEAM_ID_LINE="$(grep -E '^TEAM_ID=team-' "$REPO_ROOT/.env" 2>/dev/null || true)"
+[ -z "$TEAM_ID_LINE" ] && exit 0
+
+set -a
+. "$REPO_ROOT/.env"
+set +a
+
+cd "$REPO_ROOT"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+printf '%s' "$STDIN" | exec python3 "$SCRIPT_DIR/snapshot_core.py" --tool claude-code
+GLOBAL_HOOK_EOF
+chmod +x "$USER_CONTEST_DIR/contest-snapshot.sh"
+echo "✅ ~/.claude/contest-shared/ (global hook for cwd-outside-repo scenarios)"
+
+USER_SETTINGS="$USER_CLAUDE_DIR/settings.json"
+GLOBAL_HOOK_CMD="bash $USER_CONTEST_DIR/contest-snapshot.sh"
+
+python3 - "$USER_SETTINGS" "$GLOBAL_HOOK_CMD" <<'MERGE_PY'
+import json, sys, os
+path, cmd = sys.argv[1], sys.argv[2]
+data = {}
+if os.path.exists(path):
+    with open(path) as f:
+        try:
+            data = json.load(f)
+        except Exception:
+            print(f"⚠️  {path} exists but is not valid JSON; backing up and re-creating")
+            os.rename(path, path + ".contest-backup")
+            data = {}
+hooks = data.setdefault("hooks", {})
+contest_marker = "contest-shared/contest-snapshot.sh"
+for event in ("Stop", "SessionEnd"):
+    arr = hooks.setdefault(event, [])
+    if any(contest_marker in str(h) for group in arr for h in group.get("hooks", [])):
+        continue
+    arr.append({"hooks": [{"type": "command", "command": cmd, "timeout": 30}]})
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+print(f"✅ {path} updated (Stop+SessionEnd registered)")
+MERGE_PY
+
 echo ""
 echo "─────────────────────────────────────────────────────"
 echo "📋 NEXT STEPS"
@@ -236,4 +302,5 @@ echo "4. Verify the install:"
 echo "   bash $SOURCE_ROOT/onboarding/verify-setup.sh"
 echo ""
 echo "5. Start working with AI. Logs auto-push to logs/<date>/<tool>__<sid>.jsonl"
+echo "   (Global hook covers any cwd; in-repo hook is the fast path.)"
 echo ""
