@@ -156,6 +156,9 @@ echo "✅ schema/event.schema.json + schema/manifest.schema.json (required by va
 cp "$SOURCE_ROOT/onboarding/JUDGE_GUIDE.md" JUDGE_GUIDE.md
 echo "✅ JUDGE_GUIDE.md (judge guide, at contestant repo root)"
 
+cp "$SOURCE_ROOT/onboarding/USAGE.md" USAGE.md
+echo "✅ USAGE.md (contestant usage guide, at contestant repo root)"
+
 cat > .claude/contest-settings.snippet.json <<'SETTINGS_EOF'
 {
   "//": "Merge this into your .claude/settings.json under the `hooks` key. Append to existing arrays if they already exist; do NOT overwrite scaffold-generated hooks.",
