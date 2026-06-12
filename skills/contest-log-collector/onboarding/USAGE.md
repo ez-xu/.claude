@@ -18,24 +18,33 @@
 ## 30 秒快速通关
 
 ```bash
-# 1. clone 组委会发给你的 demo 仓
-git clone https://github.com/<contest-org>/<your-demo-repo>
-cd <your-demo-repo>
+# 1. 按官方指南拉好整个工程 (包含你的 demo 仓 + .claude 工具仓 + openvela 源码)
+mkdir openvela-contest && cd openvela-contest
+repo init -u <manifest 仓库地址> -b dev-ai-contest-2026
+repo sync
 
-# 2. 健康检查 (必做!)
-bash .claude/contest/verify-setup.sh
+# 2. 一次性安装 collector (在你的 demo 仓内跑)
+cd <你的 demo 仓>     # 例如 contest2026-042-app
+bash ../.claude/skills/contest-log-collector/onboarding/install.sh \
+  --team-id contest2026-042-app \
+  --github-login <你的 GitHub username>
 
-# 3. 跟 AI 工具协作开发
+# 3. 健康检查 (必做!)
+bash ../.claude/skills/contest-log-collector/onboarding/verify-setup.sh
+
+# 4. 跟 AI 工具协作开发
 #    所有对话会自动落到 ~/.claude/contest-collector-staging/<your-login>/
 #    这个路径在你电脑上,不会被推到任何 git 仓
 
-# 4. 想把这次对话留给评委? 跟 AI 说一句:
+# 5. 想把这次对话留给评委? 跟 AI 说一句:
 #    "archive this session into the contest repo"
 #    (或 /contest-snapshot,或 python3 tools/export-session.py --latest)
 
-# 5. 提交代码 + 日志:
+# 6. 提交代码 + 日志:
 git add . && git commit -s -m "..." && git push
 ```
+
+> 🌳 **关于 `.claude/`**: 这个仓是大赛工具仓,**已经登记在 manifest 里**,你执行 `repo sync` 时会自动拉到 `<manifest 根>/.claude/`,跟你的 demo 仓是 **sibling**(平级目录)。你不需要 git clone 它,也不需要修改它。
 
 ---
 
@@ -58,8 +67,10 @@ GITHUB_LOGIN=<你的 GitHub username>
 
 ### 1.2 跑健康检查脚本
 
+`verify-setup.sh` 在 manifest 拉下来的工具仓里,从你 demo 仓内用相对路径跑:
+
 ```bash
-bash .claude/contest/verify-setup.sh
+bash ../.claude/skills/contest-log-collector/onboarding/verify-setup.sh
 ```
 
 任何 `[FAIL]` 项都按提示修;不会的发组委会群求助。
@@ -326,7 +337,7 @@ git add logs/ && git commit -s -m "logs: final batch" && git push
 
 按以下顺序处理:
 
-1. `bash .claude/contest/verify-setup.sh` 先看健康检查
+1. `bash ../.claude/skills/contest-log-collector/onboarding/verify-setup.sh` 先看健康检查
 2. `cat ~/.claude/contest-collector-staging/<your-login>/errors/*.err` 看是不是有错误日志
 3. 实在搞不定,在大赛技术支持群报问题
 
@@ -357,25 +368,39 @@ git add logs/ && git commit -s -m "logs: final batch" && git push
 
 ## 7. 工具自带文件清单
 
-组委会建仓时会预装这些文件:
+`repo sync` 拉下来的工程长这样,**`.claude/` 是工具仓**(跟你 demo 仓平级),**不是装在你 demo 仓里**:
 
 ```
-<your-demo-repo>/
-├── .gitignore                        # 已加日志相关排除
-├── .claude/
-│   ├── shared/                       # snapshot core (export 工具用)
-│   ├── commands/contest-snapshot.md  # slash command
-│   └── contest/verify-setup.sh       # 健康检查
-├── .opencode/
-│   └── plugins/contest-collector.js  # OpenCode plugin
-├── tools/
-│   ├── export-session.py             # 主动导出工具 (核心!)
-│   ├── render-log.py                 # 日志渲染
-│   └── validate-log.py               # 防作弊校验
-├── schema/                           # JSONL 契约
-├── USAGE.md                          # 本文件
-├── JUDGE_GUIDE.md                    # 评委指南
-└── logs/                             # 导出后才会有
+<你的工作树>/                            # repo init 拉到的工作树根
+├── .repo/                              # repo 工具元数据
+├── .claude/                            # 大赛工具仓 (open-vela/.claude, 由 manifest 拉下来)
+│   └── skills/contest-log-collector/
+│       ├── adapters/                   # snapshot core / opencode plugin 源
+│       ├── commands/                   # slash command 源
+│       ├── tools/                      # export / render / validate 工具源
+│       ├── schema/                     # JSONL 契约源
+│       └── onboarding/
+│           ├── install.sh              # 一次性安装脚本
+│           ├── verify-setup.sh         # 健康检查
+│           ├── USAGE.md                # 本文件 (源)
+│           └── JUDGE_GUIDE.md          # 评委指南 (源)
+├── nuttx/  apps/  vendor/  ...         # openvela 全量源码
+└── <你的 demo 仓>/                      # 例如 contest2026-042-app
+    │                                   # — 跑过 install.sh 后,以下内容会出现 —
+    ├── .gitignore                      # 已加日志相关排除
+    ├── .claude/
+    │   ├── shared/                     # snapshot core (export 工具用,从 .claude 工具仓 cp 过来)
+    │   └── commands/contest-snapshot.md # slash command
+    ├── .opencode/
+    │   └── plugins/contest-collector.js # OpenCode plugin
+    ├── tools/
+    │   ├── export-session.py           # 主动导出工具 (核心!)
+    │   ├── render-log.py               # 日志渲染 (评委用)
+    │   └── validate-log.py             # 防作弊校验 (评委用)
+    ├── schema/                         # JSONL 契约 (validate-log.py 要)
+    ├── USAGE.md                        # 选手手册 (从工具仓 cp 过来)
+    ├── JUDGE_GUIDE.md                  # 评委指南
+    └── logs/                           # 选手主动导出 session 后才会出现
 ```
 
 另外,组委会还在你的 home 目录装了一份**全局 hook**:

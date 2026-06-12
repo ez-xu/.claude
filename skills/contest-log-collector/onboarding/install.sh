@@ -6,7 +6,7 @@
 # npx create-vela-workflow or any other track's project). Idempotent, safe to re-run.
 #
 # Usage:
-#   bash install.sh [--team-id team-XXX-yourname]
+#   bash install.sh [--team-id contest2026-NNN-form]
 #
 # Must be executed at the contestant demo repo root.
 # TEAM_ID is required (CLI flag takes priority, env var as fallback).
@@ -53,12 +53,12 @@ done
 
 TEAM_ID_FINAL="${TEAM_ID_OVERRIDE:-${TEAM_ID:-}}"
 if [ -z "$TEAM_ID_FINAL" ]; then
-  echo "❌ FATAL: TEAM_ID not set. Pass --team-id team-XXX or export TEAM_ID." >&2
+  echo "❌ FATAL: TEAM_ID not set. Pass --team-id contest2026-NNN or export TEAM_ID." >&2
   exit 2
 fi
 
-if ! echo "$TEAM_ID_FINAL" | grep -qE '^team-[a-zA-Z0-9_-]+$'; then
-  echo "❌ FATAL: TEAM_ID '$TEAM_ID_FINAL' must match pattern: team-<alnum>" >&2
+if ! echo "$TEAM_ID_FINAL" | grep -qE '^[a-zA-Z][a-zA-Z0-9_-]+$'; then
+  echo "❌ FATAL: TEAM_ID '$TEAM_ID_FINAL' must start with a letter and contain only [a-zA-Z0-9_-]" >&2
   exit 2
 fi
 
