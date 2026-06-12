@@ -213,7 +213,9 @@ def main() -> int:
     p.add_argument("--dest", metavar="PATH",
                    help="Destination repo path. Defaults to git rev-parse --show-toplevel.")
     p.add_argument("--dry-run", action="store_true",
-                   help="Show what would be copied, do not write.")
+                   help="Force preview mode, do not write.")
+    p.add_argument("--confirm", action="store_true",
+                   help="Required to actually export. Without it, the tool only previews.")
     args = p.parse_args()
 
     sessions = list_sessions(args.github_login)
@@ -238,16 +240,30 @@ def main() -> int:
                          "Run inside the repo or pass --dest.\n")
         return 2
 
+    preview_only = args.dry_run or not args.confirm
     rc = 0
     for s in selected:
-        ok, msg = copy_session(s, dest, args.dry_run)
+        ok, msg = copy_session(s, dest, preview_only)
         prefix = "✅" if ok else "❌"
         print(f"{prefix} {s['session_id'][:12]}  {msg}")
         if not ok:
             rc = 1
 
-    if not args.dry_run and any(ok for ok, _ in
-                                (copy_session(s, dest, dry_run=True) for s in selected)):
+    if preview_only:
+        print(f"\n[preview] {len(selected)} session(s) shown above. "
+              "Nothing was written.")
+        print("Re-run with --confirm to actually export, e.g.:")
+        if args.latest:
+            print("  python3 tools/export-session.py --latest --confirm")
+        elif args.session:
+            print(f"  python3 tools/export-session.py --session {args.session} --confirm")
+        elif args.today:
+            print("  python3 tools/export-session.py --today --confirm")
+        elif args.since:
+            print(f"  python3 tools/export-session.py --since {args.since} --confirm")
+        elif args.all:
+            print("  python3 tools/export-session.py --all --confirm")
+    else:
         print(f"\n{len(selected)} session(s) exported to {dest}/logs/")
         print("Next: git add logs/ && git commit && git push")
 

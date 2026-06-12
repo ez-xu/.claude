@@ -13,50 +13,24 @@
 
 > **核心架构**: 工具采用**两阶段**设计 — AI 对话先静默落到本机 staging 区(永远不出本机),需要提交到比赛仓时由你**主动说"打包"**才会复制到 demo 仓 logs/。这样你跟 AI 聊任何对话(包括个人项目)都不会被误传到比赛仓。
 
----
-
-## 30 秒快速通关
-
-```bash
-# 1. 按官方指南拉好整个工程 (包含你的 demo 仓 + .claude 工具仓 + openvela 源码)
-mkdir openvela-contest && cd openvela-contest
-repo init -u <manifest 仓库地址> -b dev-ai-contest-2026
-repo sync
-
-# 2. 一次性安装 collector (在你的 demo 仓内跑)
-cd <你的 demo 仓>     # 例如 contest2026-042-app
-bash ../.claude/skills/contest-log-collector/onboarding/install.sh \
-  --team-id contest2026-042-app \
-  --github-login <你的 GitHub username>
-
-# 3. 健康检查 (必做!)
-bash ../.claude/skills/contest-log-collector/onboarding/verify-setup.sh
-
-# 4. 跟 AI 工具协作开发
-#    所有对话会自动落到 ~/.claude/contest-collector-staging/<your-login>/
-#    这个路径在你电脑上,不会被推到任何 git 仓
-
-# 5. 想把这次对话留给评委? 跟 AI 说一句:
-#    "archive this session into the contest repo"
-#    (或 /contest-snapshot,或 python3 tools/export-session.py --latest)
-
-# 6. 提交代码 + 日志:
-git add . && git commit -s -m "..." && git push
-```
-
 > 🌳 **关于 `.claude/`**: 这个仓是大赛工具仓,**已经登记在 manifest 里**,你执行 `repo sync` 时会自动拉到 `<manifest 根>/.claude/`,跟你的 demo 仓是 **sibling**(平级目录)。你不需要 git clone 它,也不需要修改它。
 
 ---
 
 ## 1. 拿到仓库后必做的 3 件事
 
-### 1.1 确认 .env 信息正确
+### 1.1 跑 install.sh(只装一次)
+
+按官方提交指南做完 `repo init` + `repo sync` 后,在你的 demo 仓里跑一次:
 
 ```bash
-cat ~/.claude/contest-collector.env
+cd <你的 demo 仓>     # 例如 contest2026-042-app
+bash ../.claude/skills/contest-log-collector/onboarding/install.sh \
+  --team-id contest2026-042-app \
+  --github-login <你的 GitHub username>
 ```
 
-应该看到:
+`install.sh` 会**自动创建** `~/.claude/contest-collector.env`(身份信息文件,内容 TEAM_ID + GITHUB_LOGIN),你不需要自己建。可以跑完后 `cat ~/.claude/contest-collector.env` 验证一下:
 
 ```
 TEAM_ID=contest2026-XXX
@@ -146,7 +120,7 @@ Stop hook 自动落 staging。
 - "package this conversation"
 - "归档对话"
 
-AI 会调用 `tools/export-session.py --latest`,把最近一次 session 从 staging 复制到 `logs/<your-login>/`。
+AI 会先跑 `tools/export-session.py --latest`(预览),把要导的 session 给你看,等你确认后再加 `--confirm` 真写入。
 
 ### 方式 B: Slash Command (Claude Code)
 
@@ -154,32 +128,30 @@ AI 会调用 `tools/export-session.py --latest`,把最近一次 session 从 stag
 /contest-snapshot
 ```
 
-效果同上。
+效果同上(同样 preview → confirm 两步)。
 
 ### 方式 C: 直接跑脚本
 
 ```bash
-# 看看 staging 里有哪些 session
+# 1. 列出 staging 里所有 session,确认要导哪个
 python3 tools/export-session.py --list
 
-# 导出最近一次
+# 2. 预览要导出的 session (默认就是预览,不写文件)
 python3 tools/export-session.py --latest
-
-# 导出今天所有
+python3 tools/export-session.py --session <session-id>
 python3 tools/export-session.py --today
 
-# 导出指定 session
-python3 tools/export-session.py --session <session-id>
-
-# 导出某天起所有
-python3 tools/export-session.py --since 2026-06-15
-
-# 全部导出 (用于赛末统一打包)
-python3 tools/export-session.py --all
-
-# dry-run 预览不写文件
-python3 tools/export-session.py --latest --dry-run
+# 3. 看清楚后,加 --confirm 真导出
+python3 tools/export-session.py --latest --confirm
+python3 tools/export-session.py --session <session-id> --confirm
+python3 tools/export-session.py --today --confirm
+python3 tools/export-session.py --since 2026-06-15 --confirm
+python3 tools/export-session.py --all --confirm
 ```
+
+> ⚠️ **关键: 不加 `--confirm` 时永远只是预览,不会写任何文件**。
+> 这是为了避免你忘了"上一次跟 AI 聊的是个人项目"就误导出。
+> 推荐流程: `--list` 看清单 → `--session <id>` 预览 → `--session <id> --confirm` 真写。
 
 ### 然后正常 commit + push
 
