@@ -5,7 +5,7 @@
 // See openspec/changes/contest-log-upload/tasks.md Group 2 (16 items) for changes.
 // Deploy location: <demo-repo>/.opencode/plugins/collector.js
 // Required env: TEAM_ID
-// Optional env: SESSION_LOG_DIR / LOG_PUSH_INTERVAL / LOG_FALLBACK_EMAIL
+// Optional env: SESSION_LOG_DIR
 
 import {
   readFileSync,
@@ -376,76 +376,7 @@ async function fetchSessionMeta(client, sessionId, logRoot) {
   }
 }
 
-async function autoCommitAndPush(repoRoot, memberDir, githubLogin) {
-  const stamp = join(memberDir, ".last_push");
-  const now = Date.now() / 1000;
-  let last = 0;
-  try {
-    last = parseFloat(readFileSync(stamp, "utf8").trim()) || 0;
-  } catch {}
-  if (now - last < PUSH_INTERVAL) return { skipped: true, reason: "throttle" };
 
-  const status = gitExec(["status", "--porcelain"], repoRoot);
-  if (status.code !== 0) {
-    reportError(memberDir, "git_status", { repoRoot }, {
-      message: status.err || "git status failed",
-    });
-    return { skipped: true, reason: "status_failed" };
-  }
-  if (!status.out) {
-    try {
-      writeFileSync(stamp, String(now));
-    } catch {}
-    return { skipped: true, reason: "no_changes" };
-  }
-
-  gitExec(["add", "-A"], repoRoot);
-  const msg = `[session-log] ${process.env.TEAM_ID} ${githubLogin} ${isoNow()}`;
-  let commit = gitExec(["commit", "-m", msg, "--allow-empty"], repoRoot);
-
-  if (commit.code !== 0 && commit.err && commit.err.includes("tell me who you are")) {
-    const { name, email } = getFallbackAuthor();
-    const env = {
-      ...process.env,
-      GIT_AUTHOR_NAME: name,
-      GIT_AUTHOR_EMAIL: email,
-      GIT_COMMITTER_NAME: name,
-      GIT_COMMITTER_EMAIL: email,
-    };
-    commit = gitExec(["commit", "-m", msg, "--allow-empty"], repoRoot, { env });
-  }
-
-  if (commit.code !== 0) {
-    reportError(memberDir, "git_commit", { msg }, { message: commit.err });
-    return { skipped: false, ok: false, stage: "commit" };
-  }
-
-  const branchProbe = gitExec(["symbolic-ref", "--short", "HEAD"], repoRoot);
-  const branch = (branchProbe.out || "").trim();
-  if (branchProbe.code !== 0 || !branch) {
-    reportError(memberDir, "git_push", { msg },
-      { message: "detached HEAD or rebase in progress; refusing to push" });
-    return { skipped: false, ok: false, stage: "push" };
-  }
-
-  const refspec = `HEAD:refs/heads/${branch}`;
-  let push = gitExec(["push", "origin", refspec], repoRoot);
-  if (push.code !== 0) {
-    const rebase = gitExec(["pull", "--rebase", "--autostash", "origin", branch], repoRoot);
-    if (rebase.code === 0) {
-      push = gitExec(["push", "origin", refspec], repoRoot);
-    }
-  }
-  if (push.code !== 0) {
-    reportError(memberDir, "git_push", { msg }, { message: push.err });
-    return { skipped: false, ok: false, stage: "push" };
-  }
-
-  try {
-    writeFileSync(stamp, String(now));
-  } catch {}
-  return { skipped: false, ok: true };
-}
 
 async function onSessionIdle(client, repoRoot, sessionId) {
   if (!process.env.TEAM_ID) {
@@ -566,11 +497,10 @@ async function onSessionIdle(client, repoRoot, sessionId) {
 
   writeManifest(memberDir, manifest, githubLogin);
 
-  const pushResult = await autoCommitAndPush(repoRoot, memberDir, githubLogin);
-  if (!pushResult.skipped && !pushResult.ok) {
-    if (entry) entry.health = "degraded";
-    writeManifest(memberDir, manifest, githubLogin);
-  }
+  console.error(
+    `[session-log] captured ${writeResult.written} event(s) -> ${relPath} ` +
+    `(remember to 'git add logs/' when committing)`
+  );
 }
 
 export default {
