@@ -40,7 +40,7 @@ description: "为 openvela AI 大赛归集 AI Coding 日志,采用 staging + 显
 - "归档刚才的对话"
 - "archive this session"
 
-AI 会读到本 SKILL,自动调用 `tools/export-session.py --latest`。
+AI 会先跑 `tools/export-session.py --latest`(预览),把要导的 session 给选手看,等选手确认后再加 `--confirm` 真写入。
 
 ### 2. Slash command(Claude Code 支持)
 
@@ -48,23 +48,29 @@ AI 会读到本 SKILL,自动调用 `tools/export-session.py --latest`。
 /contest-snapshot
 ```
 
-定义在 `.claude/commands/contest-snapshot.md`,触发与上面相同。
+定义在 `.claude/commands/contest-snapshot.md`,触发与上面相同(同样 preview → confirm 两步)。
 
 ### 3. 直接跑脚本(任何工具都行)
 
 ```bash
-# 导出最近一次 session
-python3 tools/export-session.py --latest
-
-# 导出今天所有 session
-python3 tools/export-session.py --today
-
 # 列出 staging 里所有 session
 python3 tools/export-session.py --list
 
-# 导出指定 session
-python3 tools/export-session.py --session <session-id>
+# 预览要导出哪个 (默认就是 preview, 不写文件)
+python3 tools/export-session.py --latest
+
+# 真导出 (加 --confirm)
+python3 tools/export-session.py --latest --confirm
+
+# 按精确 session ID 导出 (推荐用法,避免 --latest 误选)
+python3 tools/export-session.py --session <session-id> --confirm
+
+# 按日期导出
+python3 tools/export-session.py --today --confirm
+python3 tools/export-session.py --since 2026-06-15 --confirm
 ```
+
+> ⚠️ **隐私默认**: 不加 `--confirm` 时只是预览,不会写任何文件,看清楚要导哪个再加 `--confirm`。这是为了避免误导出上一场不该上传的对话。
 
 ## 目录结构
 

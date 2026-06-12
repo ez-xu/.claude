@@ -13,41 +13,24 @@
 
 > **核心架构**: 工具采用**两阶段**设计 — AI 对话先静默落到本机 staging 区(永远不出本机),需要提交到比赛仓时由你**主动说"打包"**才会复制到 demo 仓 logs/。这样你跟 AI 聊任何对话(包括个人项目)都不会被误传到比赛仓。
 
----
-
-## 30 秒快速通关
-
-```bash
-# 1. clone 组委会发给你的 demo 仓
-git clone https://github.com/<contest-org>/<your-demo-repo>
-cd <your-demo-repo>
-
-# 2. 健康检查 (必做!)
-bash .claude/contest/verify-setup.sh
-
-# 3. 跟 AI 工具协作开发
-#    所有对话会自动落到 ~/.claude/contest-collector-staging/<your-login>/
-#    这个路径在你电脑上,不会被推到任何 git 仓
-
-# 4. 想把这次对话留给评委? 跟 AI 说一句:
-#    "archive this session into the contest repo"
-#    (或 /contest-snapshot,或 python3 tools/export-session.py --latest)
-
-# 5. 提交代码 + 日志:
-git add . && git commit -s -m "..." && git push
-```
+> 🌳 **关于 `.claude/`**: 这个仓是大赛工具仓,**已经登记在 manifest 里**,你执行 `repo sync` 时会自动拉到 `<manifest 根>/.claude/`,跟你的 demo 仓是 **sibling**(平级目录)。你不需要 git clone 它,也不需要修改它。
 
 ---
 
 ## 1. 拿到仓库后必做的 3 件事
 
-### 1.1 确认 .env 信息正确
+### 1.1 跑 install.sh(只装一次)
+
+按官方提交指南做完 `repo init` + `repo sync` 后,在你的 demo 仓里跑一次:
 
 ```bash
-cat ~/.claude/contest-collector.env
+cd <你的 demo 仓>     # 例如 contest2026-042-app
+bash ../.claude/skills/contest-log-collector/onboarding/install.sh \
+  --team-id contest2026-042-app \
+  --github-login <你的 GitHub username>
 ```
 
-应该看到:
+`install.sh` 会**自动创建** `~/.claude/contest-collector.env`(身份信息文件,内容 TEAM_ID + GITHUB_LOGIN),你不需要自己建。可以跑完后 `cat ~/.claude/contest-collector.env` 验证一下:
 
 ```
 TEAM_ID=contest2026-XXX
@@ -58,8 +41,10 @@ GITHUB_LOGIN=<你的 GitHub username>
 
 ### 1.2 跑健康检查脚本
 
+`verify-setup.sh` 在 manifest 拉下来的工具仓里,从你 demo 仓内用相对路径跑:
+
 ```bash
-bash .claude/contest/verify-setup.sh
+bash ../.claude/skills/contest-log-collector/onboarding/verify-setup.sh
 ```
 
 任何 `[FAIL]` 项都按提示修;不会的发组委会群求助。
@@ -135,7 +120,7 @@ Stop hook 自动落 staging。
 - "package this conversation"
 - "归档对话"
 
-AI 会调用 `tools/export-session.py --latest`,把最近一次 session 从 staging 复制到 `logs/<your-login>/`。
+AI 会先跑 `tools/export-session.py --latest`(预览),把要导的 session 给你看,等你确认后再加 `--confirm` 真写入。
 
 ### 方式 B: Slash Command (Claude Code)
 
@@ -143,32 +128,30 @@ AI 会调用 `tools/export-session.py --latest`,把最近一次 session 从 stag
 /contest-snapshot
 ```
 
-效果同上。
+效果同上(同样 preview → confirm 两步)。
 
 ### 方式 C: 直接跑脚本
 
 ```bash
-# 看看 staging 里有哪些 session
+# 1. 列出 staging 里所有 session,确认要导哪个
 python3 tools/export-session.py --list
 
-# 导出最近一次
+# 2. 预览要导出的 session (默认就是预览,不写文件)
 python3 tools/export-session.py --latest
-
-# 导出今天所有
+python3 tools/export-session.py --session <session-id>
 python3 tools/export-session.py --today
 
-# 导出指定 session
-python3 tools/export-session.py --session <session-id>
-
-# 导出某天起所有
-python3 tools/export-session.py --since 2026-06-15
-
-# 全部导出 (用于赛末统一打包)
-python3 tools/export-session.py --all
-
-# dry-run 预览不写文件
-python3 tools/export-session.py --latest --dry-run
+# 3. 看清楚后,加 --confirm 真导出
+python3 tools/export-session.py --latest --confirm
+python3 tools/export-session.py --session <session-id> --confirm
+python3 tools/export-session.py --today --confirm
+python3 tools/export-session.py --since 2026-06-15 --confirm
+python3 tools/export-session.py --all --confirm
 ```
+
+> ⚠️ **关键: 不加 `--confirm` 时永远只是预览,不会写任何文件**。
+> 这是为了避免你忘了"上一次跟 AI 聊的是个人项目"就误导出。
+> 推荐流程: `--list` 看清单 → `--session <id>` 预览 → `--session <id> --confirm` 真写。
 
 ### 然后正常 commit + push
 
@@ -326,7 +309,7 @@ git add logs/ && git commit -s -m "logs: final batch" && git push
 
 按以下顺序处理:
 
-1. `bash .claude/contest/verify-setup.sh` 先看健康检查
+1. `bash ../.claude/skills/contest-log-collector/onboarding/verify-setup.sh` 先看健康检查
 2. `cat ~/.claude/contest-collector-staging/<your-login>/errors/*.err` 看是不是有错误日志
 3. 实在搞不定,在大赛技术支持群报问题
 
@@ -357,25 +340,39 @@ git add logs/ && git commit -s -m "logs: final batch" && git push
 
 ## 7. 工具自带文件清单
 
-组委会建仓时会预装这些文件:
+`repo sync` 拉下来的工程长这样,**`.claude/` 是工具仓**(跟你 demo 仓平级),**不是装在你 demo 仓里**:
 
 ```
-<your-demo-repo>/
-├── .gitignore                        # 已加日志相关排除
-├── .claude/
-│   ├── shared/                       # snapshot core (export 工具用)
-│   ├── commands/contest-snapshot.md  # slash command
-│   └── contest/verify-setup.sh       # 健康检查
-├── .opencode/
-│   └── plugins/contest-collector.js  # OpenCode plugin
-├── tools/
-│   ├── export-session.py             # 主动导出工具 (核心!)
-│   ├── render-log.py                 # 日志渲染
-│   └── validate-log.py               # 防作弊校验
-├── schema/                           # JSONL 契约
-├── USAGE.md                          # 本文件
-├── JUDGE_GUIDE.md                    # 评委指南
-└── logs/                             # 导出后才会有
+<你的工作树>/                            # repo init 拉到的工作树根
+├── .repo/                              # repo 工具元数据
+├── .claude/                            # 大赛工具仓 (open-vela/.claude, 由 manifest 拉下来)
+│   └── skills/contest-log-collector/
+│       ├── adapters/                   # snapshot core / opencode plugin 源
+│       ├── commands/                   # slash command 源
+│       ├── tools/                      # export / render / validate 工具源
+│       ├── schema/                     # JSONL 契约源
+│       └── onboarding/
+│           ├── install.sh              # 一次性安装脚本
+│           ├── verify-setup.sh         # 健康检查
+│           ├── USAGE.md                # 本文件 (源)
+│           └── JUDGE_GUIDE.md          # 评委指南 (源)
+├── nuttx/  apps/  vendor/  ...         # openvela 全量源码
+└── <你的 demo 仓>/                      # 例如 contest2026-042-app
+    │                                   # — 跑过 install.sh 后,以下内容会出现 —
+    ├── .gitignore                      # 已加日志相关排除
+    ├── .claude/
+    │   ├── shared/                     # snapshot core (export 工具用,从 .claude 工具仓 cp 过来)
+    │   └── commands/contest-snapshot.md # slash command
+    ├── .opencode/
+    │   └── plugins/contest-collector.js # OpenCode plugin
+    ├── tools/
+    │   ├── export-session.py           # 主动导出工具 (核心!)
+    │   ├── render-log.py               # 日志渲染 (评委用)
+    │   └── validate-log.py             # 防作弊校验 (评委用)
+    ├── schema/                         # JSONL 契约 (validate-log.py 要)
+    ├── USAGE.md                        # 选手手册 (从工具仓 cp 过来)
+    ├── JUDGE_GUIDE.md                  # 评委指南
+    └── logs/                           # 选手主动导出 session 后才会出现
 ```
 
 另外,组委会还在你的 home 目录装了一份**全局 hook**:

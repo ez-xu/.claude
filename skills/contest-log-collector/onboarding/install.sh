@@ -6,7 +6,7 @@
 # npx create-vela-workflow or any other track's project). Idempotent, safe to re-run.
 #
 # Usage:
-#   bash install.sh [--team-id team-XXX-yourname]
+#   bash install.sh [--team-id contest2026-NNN-form]
 #
 # Must be executed at the contestant demo repo root.
 # TEAM_ID is required (CLI flag takes priority, env var as fallback).
@@ -53,12 +53,12 @@ done
 
 TEAM_ID_FINAL="${TEAM_ID_OVERRIDE:-${TEAM_ID:-}}"
 if [ -z "$TEAM_ID_FINAL" ]; then
-  echo "❌ FATAL: TEAM_ID not set. Pass --team-id team-XXX or export TEAM_ID." >&2
+  echo "❌ FATAL: TEAM_ID not set. Pass --team-id contest2026-NNN or export TEAM_ID." >&2
   exit 2
 fi
 
-if ! echo "$TEAM_ID_FINAL" | grep -qE '^team-[a-zA-Z0-9_-]+$'; then
-  echo "❌ FATAL: TEAM_ID '$TEAM_ID_FINAL' must match pattern: team-<alnum>" >&2
+if ! echo "$TEAM_ID_FINAL" | grep -qE '^[a-zA-Z][a-zA-Z0-9_-]+$'; then
+  echo "❌ FATAL: TEAM_ID '$TEAM_ID_FINAL' must start with a letter and contain only [a-zA-Z0-9_-]" >&2
   exit 2
 fi
 
@@ -125,6 +125,16 @@ mkdir -p schema
 cp "$SOURCE_ROOT/schema/event.schema.json" schema/event.schema.json
 cp "$SOURCE_ROOT/schema/manifest.schema.json" schema/manifest.schema.json
 echo "✅ schema/event.schema.json + schema/manifest.schema.json (required by validate-log.py)"
+
+if ! python3 -c "import jsonschema" 2>/dev/null; then
+  if pip3 install --quiet --user jsonschema 2>/dev/null; then
+    echo "✅ pip install jsonschema (required by validate-log.py)"
+  else
+    echo "⚠️  python3 -m pip install jsonschema  failed; install it manually before running validate-log.py"
+  fi
+else
+  echo "✓  python3 jsonschema already installed"
+fi
 
 cp "$SOURCE_ROOT/onboarding/JUDGE_GUIDE.md" JUDGE_GUIDE.md
 echo "✅ JUDGE_GUIDE.md (judge guide, at contestant repo root)"
@@ -228,7 +238,8 @@ echo "     'archive this session into the contest repo'  (or any equivalent phra
 echo "   or run the slash command:"
 echo "     /contest-snapshot"
 echo "   or run the script directly:"
-echo "     python3 tools/export-session.py --latest"
+echo "     python3 tools/export-session.py --latest          # preview"
+echo "     python3 tools/export-session.py --latest --confirm  # really export"
 echo ""
 echo "4. Commit + push logs as part of your normal flow:"
 echo "     git add logs/ && git commit -s -m 'logs: capture session' && git push"

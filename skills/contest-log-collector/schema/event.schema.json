@@ -28,9 +28,9 @@
     },
     "team_id": {
       "type": "string",
-      "description": "Team ID (e.g. team-001-zhangsan), provided via TEAM_ID env var.",
+      "description": "Team ID (e.g. contest2026-042-app), provided via TEAM_ID env var.",
       "minLength": 1,
-      "pattern": "^team-[a-zA-Z0-9_-]+$"
+      "pattern": "^[a-zA-Z][a-zA-Z0-9_-]+$"
     },
     "github_login": {
       "type": "string",
