@@ -106,47 +106,20 @@ mkdir -p .opencode/plugins
 cp "$SOURCE_ROOT/adapters/opencode/collector.js" .opencode/plugins/contest-collector.js
 echo "✅ .opencode/plugins/contest-collector.js"
 
-mkdir -p .claude/hooks .claude/shared
+mkdir -p .claude/shared .claude/commands
 cp "$SOURCE_ROOT/adapters/shared/snapshot_core.py" .claude/shared/snapshot_core.py
 cp "$SOURCE_ROOT/adapters/shared/get_github_login.py" .claude/shared/get_github_login.py
+cp "$SOURCE_ROOT/commands/contest-snapshot.md" .claude/commands/contest-snapshot.md
+echo "✅ .claude/commands/contest-snapshot.md (slash command: /contest-snapshot)"
 
-cat > .claude/hooks/contest-snapshot.sh <<'HOOK_EOF'
-#!/usr/bin/env bash
-# Important: auto-load .env, because IDE/plugin does not inherit user shell exports when launching the hook.
-# This is a real constraint of AIoT-IDE / VS Code's Claude Code plugin.
-set -eu
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-ENV_FILE=""
-for candidate in \
-  "${CLAUDE_PROJECT_DIR:-}/.env" \
-  "$SCRIPT_DIR/../../.env" \
-  "$(git -C "$SCRIPT_DIR/../.." rev-parse --show-toplevel 2>/dev/null)/.env"; do
-  if [ -n "$candidate" ] && [ -f "$candidate" ]; then
-    ENV_FILE="$candidate"
-    break
-  fi
-done
-
-if [ -n "$ENV_FILE" ]; then
-  set -a
-  . "$ENV_FILE"
-  set +a
-fi
-
-exec python3 "$SCRIPT_DIR/../shared/snapshot_core.py" --tool claude-code
-HOOK_EOF
-chmod +x .claude/hooks/contest-snapshot.sh
-echo "✅ .claude/hooks/contest-snapshot.sh"
-echo "✅ .claude/shared/snapshot_core.py"
-echo "✅ .claude/shared/get_github_login.py"
+echo "✅ .claude/shared/snapshot_core.py + .claude/shared/get_github_login.py (used by export-session.py and the slash command)"
 
 mkdir -p tools
 cp "$SOURCE_ROOT/tools/render-log.py" tools/render-log.py
 cp "$SOURCE_ROOT/tools/validate-log.py" tools/validate-log.py
-chmod +x tools/render-log.py tools/validate-log.py
-echo "✅ tools/render-log.py + tools/validate-log.py (for local judge review)"
+cp "$SOURCE_ROOT/tools/export-session.py" tools/export-session.py
+chmod +x tools/render-log.py tools/validate-log.py tools/export-session.py
+echo "✅ tools/render-log.py + tools/validate-log.py + tools/export-session.py"
 
 mkdir -p schema
 cp "$SOURCE_ROOT/schema/event.schema.json" schema/event.schema.json
@@ -159,37 +132,6 @@ echo "✅ JUDGE_GUIDE.md (judge guide, at contestant repo root)"
 cp "$SOURCE_ROOT/onboarding/USAGE.md" USAGE.md
 echo "✅ USAGE.md (contestant usage guide, at contestant repo root)"
 
-cat > .claude/contest-settings.snippet.json <<'SETTINGS_EOF'
-{
-  "//": "Merge this into your .claude/settings.json under the `hooks` key. Append to existing arrays if they already exist; do NOT overwrite scaffold-generated hooks.",
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/contest-snapshot.sh",
-            "timeout": 30
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/contest-snapshot.sh",
-            "timeout": 30
-          }
-        ]
-      }
-    ]
-  }
-}
-SETTINGS_EOF
-echo "✅ .claude/contest-settings.snippet.json (manual merge required)"
-
 GITIGNORE_ENTRIES=("logs/**/.cache/" "logs/**/*.tmp")
 [ -f .gitignore ] || touch .gitignore
 for entry in "${GITIGNORE_ENTRIES[@]}"; do
@@ -199,32 +141,26 @@ for entry in "${GITIGNORE_ENTRIES[@]}"; do
 done
 echo "✅ .gitignore updated"
 
-if [ ! -f .env ]; then
-  cat > .env <<EOF
-TEAM_ID=$TEAM_ID_FINAL
-GITHUB_LOGIN=$GITHUB_LOGIN_FINAL
-EOF
-  echo "✅ .env created (TEAM_ID=$TEAM_ID_FINAL, GITHUB_LOGIN=$GITHUB_LOGIN_FINAL)"
-else
-  for var in TEAM_ID GITHUB_LOGIN; do
-    if [ "$var" = "TEAM_ID" ]; then val="$TEAM_ID_FINAL"; else val="$GITHUB_LOGIN_FINAL"; fi
-    if ! grep -qE "^$var=" .env; then
-      echo "$var=$val" >> .env
-      echo "✅ .env: appended $var=$val"
-    else
-      cur=$(grep -E "^$var=" .env | head -1 | cut -d= -f2-)
-      if [ "$cur" != "$val" ]; then
-        echo "⚠️  .env: existing $var=$cur differs from --$var $val (keeping existing)"
-      else
-        echo "✅ .env: $var already set correctly"
-      fi
-    fi
-  done
+if [ -f .env ] && grep -qE '^TEAM_ID=' .env; then
+  echo "✓  .env already has TEAM_ID; identity is now stored in ~/.claude/contest-collector.env"
 fi
 
 USER_CLAUDE_DIR="${HOME}/.claude"
 USER_CONTEST_DIR="$USER_CLAUDE_DIR/contest-shared"
-mkdir -p "$USER_CLAUDE_DIR" "$USER_CONTEST_DIR"
+USER_STAGING_DIR="$USER_CLAUDE_DIR/contest-collector-staging"
+USER_GLOBAL_ENV="$USER_CLAUDE_DIR/contest-collector.env"
+mkdir -p "$USER_CLAUDE_DIR" "$USER_CONTEST_DIR" "$USER_STAGING_DIR"
+
+if [ ! -f "$USER_GLOBAL_ENV" ]; then
+  cat > "$USER_GLOBAL_ENV" <<EOF
+TEAM_ID=$TEAM_ID_FINAL
+GITHUB_LOGIN=$GITHUB_LOGIN_FINAL
+EOF
+  echo "✅ ~/.claude/contest-collector.env (your contest identity, machine-wide)"
+else
+  echo "✓  ~/.claude/contest-collector.env already exists, leaving it alone"
+fi
+
 cp "$SOURCE_ROOT/adapters/shared/snapshot_core.py" "$USER_CONTEST_DIR/snapshot_core.py"
 cp "$SOURCE_ROOT/adapters/shared/get_github_login.py" "$USER_CONTEST_DIR/get_github_login.py"
 
@@ -232,26 +168,17 @@ cat > "$USER_CONTEST_DIR/contest-snapshot.sh" <<'GLOBAL_HOOK_EOF'
 #!/usr/bin/env bash
 set -eu
 
-STDIN="$(cat)"
-CWD="$(printf '%s' "$STDIN" | python3 -c 'import json,sys
-try:
-  d=json.loads(sys.stdin.read());print(d.get("cwd",""))
-except Exception: pass' 2>/dev/null || true)"
-[ -z "$CWD" ] && CWD="$PWD"
-
-REPO_ROOT="$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || true)"
-[ -z "$REPO_ROOT" ] || [ ! -f "$REPO_ROOT/.env" ] && exit 0
-
-TEAM_ID_LINE="$(grep -E '^TEAM_ID=team-' "$REPO_ROOT/.env" 2>/dev/null || true)"
-[ -z "$TEAM_ID_LINE" ] && exit 0
+GLOBAL_ENV="$HOME/.claude/contest-collector.env"
+[ -f "$GLOBAL_ENV" ] || exit 0
 
 set -a
-. "$REPO_ROOT/.env"
+. "$GLOBAL_ENV"
 set +a
 
-cd "$REPO_ROOT"
+[ -z "${TEAM_ID:-}" ] && exit 0
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-printf '%s' "$STDIN" | exec python3 "$SCRIPT_DIR/snapshot_core.py" --tool claude-code
+exec python3 "$SCRIPT_DIR/snapshot_core.py" --tool claude-code
 GLOBAL_HOOK_EOF
 chmod +x "$USER_CONTEST_DIR/contest-snapshot.sh"
 echo "✅ ~/.claude/contest-shared/ (global hook for cwd-outside-repo scenarios)"
@@ -288,24 +215,21 @@ echo "────────────────────────�
 echo "📋 NEXT STEPS"
 echo "─────────────────────────────────────────────────────"
 echo ""
-echo "1. Merge .claude/contest-settings.snippet.json into .claude/settings.json"
-echo "   (if settings.json doesn't exist yet, just rename the snippet:"
-echo "    mv .claude/contest-settings.snippet.json .claude/settings.json"
-echo "    AND remove the '//' comment line)"
-echo ""
-echo "2. Source the .env before launching AI tools:"
-echo "   set -a && source .env && set +a"
-echo "   (or add to your shell profile: 'export TEAM_ID=$TEAM_ID_FINAL')"
-echo ""
-echo "3. (Codex users only) Run Codex CLI once and execute:"
-echo "   /hooks   →   then trust the snapshot.py hook"
-echo ""
-echo "4. Verify the install:"
+echo "1. (one-time) Verify the install:"
 echo "   bash $SOURCE_ROOT/onboarding/verify-setup.sh"
 echo ""
-echo "5. Start working with AI. Sessions are auto-saved into:"
-echo "     logs/<github_login>/<date>/<tool>__<sid>.jsonl"
-echo "   The collector ONLY writes files. Commit and push the logs/"
-echo "   directory together with your normal code changes."
-echo "   (Global hook covers any cwd; in-repo hook is the fast path.)"
+echo "2. Start working with AI."
+echo "   Every session is staged silently to:"
+echo "     ~/.claude/contest-collector-staging/$GITHUB_LOGIN_FINAL/"
+echo "   This stays on your machine. NOTHING reaches the demo repo automatically."
+echo ""
+echo "3. When you finish a session you want to submit, ask the AI:"
+echo "     'archive this session into the contest repo'  (or any equivalent phrasing)"
+echo "   or run the slash command:"
+echo "     /contest-snapshot"
+echo "   or run the script directly:"
+echo "     python3 tools/export-session.py --latest"
+echo ""
+echo "4. Commit + push logs as part of your normal flow:"
+echo "     git add logs/ && git commit -s -m 'logs: capture session' && git push"
 echo ""
