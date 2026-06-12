@@ -347,7 +347,8 @@ def process_claude_stdin(stdin_data: dict, tool: str, team_id: str) -> int:
         return 2
     github_login = login_result[0]
 
-    log_root = Path(os.environ.get("SESSION_LOG_DIR") or (repo_root / "logs"))
+    log_root = Path(os.environ.get("SESSION_LOG_DIR")
+                    or (Path.home() / ".claude" / "contest-collector-staging"))
     member_dir = log_root / github_login
     try:
         member_dir.mkdir(parents=True, exist_ok=True)
