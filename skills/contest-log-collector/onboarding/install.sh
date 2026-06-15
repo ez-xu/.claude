@@ -97,34 +97,11 @@ if [ -z "$GITHUB_LOGIN_FINAL" ] || ! echo "$GITHUB_LOGIN_FINAL" | grep -qE '^[A-
   exit 2
 fi
 
-echo "📦 Installing contest collector to: $REPO_ROOT"
+echo "📦 Installing contest collector (machine-wide, zero touch on demo repo)"
 echo "   TEAM_ID:      $TEAM_ID_FINAL"
 echo "   GITHUB_LOGIN: $GITHUB_LOGIN_FINAL  (source: $GITHUB_LOGIN_SOURCE)"
+echo "   Demo repo:    $REPO_ROOT  (untouched)"
 echo ""
-
-mkdir -p .opencode/plugins
-cp "$SOURCE_ROOT/adapters/opencode/collector.js" .opencode/plugins/contest-collector.js
-echo "✅ .opencode/plugins/contest-collector.js"
-
-mkdir -p .claude/shared .claude/commands
-cp "$SOURCE_ROOT/adapters/shared/snapshot_core.py" .claude/shared/snapshot_core.py
-cp "$SOURCE_ROOT/adapters/shared/get_github_login.py" .claude/shared/get_github_login.py
-cp "$SOURCE_ROOT/commands/contest-snapshot.md" .claude/commands/contest-snapshot.md
-echo "✅ .claude/commands/contest-snapshot.md (slash command: /contest-snapshot)"
-
-echo "✅ .claude/shared/snapshot_core.py + .claude/shared/get_github_login.py (used by export-session.py and the slash command)"
-
-mkdir -p tools
-cp "$SOURCE_ROOT/tools/render-log.py" tools/render-log.py
-cp "$SOURCE_ROOT/tools/validate-log.py" tools/validate-log.py
-cp "$SOURCE_ROOT/tools/export-session.py" tools/export-session.py
-chmod +x tools/render-log.py tools/validate-log.py tools/export-session.py
-echo "✅ tools/render-log.py + tools/validate-log.py + tools/export-session.py"
-
-mkdir -p schema
-cp "$SOURCE_ROOT/schema/event.schema.json" schema/event.schema.json
-cp "$SOURCE_ROOT/schema/manifest.schema.json" schema/manifest.schema.json
-echo "✅ schema/event.schema.json + schema/manifest.schema.json (required by validate-log.py)"
 
 if ! python3 -c "import jsonschema" 2>/dev/null; then
   if pip3 install --quiet --user jsonschema 2>/dev/null; then
@@ -136,30 +113,12 @@ else
   echo "✓  python3 jsonschema already installed"
 fi
 
-cp "$SOURCE_ROOT/onboarding/JUDGE_GUIDE.md" JUDGE_GUIDE.md
-echo "✅ JUDGE_GUIDE.md (judge guide, at contestant repo root)"
-
-cp "$SOURCE_ROOT/onboarding/USAGE.md" USAGE.md
-echo "✅ USAGE.md (contestant usage guide, at contestant repo root)"
-
-GITIGNORE_ENTRIES=("logs/**/.cache/" "logs/**/*.tmp")
-[ -f .gitignore ] || touch .gitignore
-for entry in "${GITIGNORE_ENTRIES[@]}"; do
-  if ! grep -qxF "$entry" .gitignore; then
-    echo "$entry" >> .gitignore
-  fi
-done
-echo "✅ .gitignore updated"
-
-if [ -f .env ] && grep -qE '^TEAM_ID=' .env; then
-  echo "✓  .env already has TEAM_ID; identity is now stored in ~/.claude/contest-collector.env"
-fi
-
 USER_CLAUDE_DIR="${HOME}/.claude"
 USER_CONTEST_DIR="$USER_CLAUDE_DIR/contest-shared"
 USER_STAGING_DIR="$USER_CLAUDE_DIR/contest-collector-staging"
 USER_GLOBAL_ENV="$USER_CLAUDE_DIR/contest-collector.env"
-mkdir -p "$USER_CLAUDE_DIR" "$USER_CONTEST_DIR" "$USER_STAGING_DIR"
+USER_OPENCODE_DIR="${HOME}/.config/opencode/plugin"
+mkdir -p "$USER_CLAUDE_DIR" "$USER_CONTEST_DIR" "$USER_STAGING_DIR" "$USER_OPENCODE_DIR"
 
 if [ ! -f "$USER_GLOBAL_ENV" ]; then
   cat > "$USER_GLOBAL_ENV" <<EOF
@@ -191,7 +150,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 exec python3 "$SCRIPT_DIR/snapshot_core.py" --tool claude-code
 GLOBAL_HOOK_EOF
 chmod +x "$USER_CONTEST_DIR/contest-snapshot.sh"
-echo "✅ ~/.claude/contest-shared/ (global hook for cwd-outside-repo scenarios)"
+echo "✅ ~/.claude/contest-shared/ (Claude Code + Codex global hook)"
+
+cp "$SOURCE_ROOT/adapters/opencode/collector.js" "$USER_OPENCODE_DIR/contest-collector.js"
+echo "✅ ~/.config/opencode/plugin/contest-collector.js (OpenCode global plugin)"
 
 USER_SETTINGS="$USER_CLAUDE_DIR/settings.json"
 GLOBAL_HOOK_CMD="bash $USER_CONTEST_DIR/contest-snapshot.sh"
@@ -217,15 +179,17 @@ for event in ("Stop", "SessionEnd"):
     arr.append({"hooks": [{"type": "command", "command": cmd, "timeout": 30}]})
 with open(path, "w") as f:
     json.dump(data, f, indent=2)
-print(f"✅ {path} updated (Stop+SessionEnd registered)")
+print(f"✅ {path} (Stop+SessionEnd registered for Claude Code)")
 MERGE_PY
+
+TOOLS_REL="../.claude/skills/contest-log-collector/tools"
 
 echo ""
 echo "─────────────────────────────────────────────────────"
 echo "📋 NEXT STEPS"
 echo "─────────────────────────────────────────────────────"
 echo ""
-echo "1. (one-time) Verify the install:"
+echo "1. Verify the install (one-time):"
 echo "   bash $SOURCE_ROOT/onboarding/verify-setup.sh"
 echo ""
 echo "2. Start working with AI."
@@ -233,14 +197,12 @@ echo "   Every session is staged silently to:"
 echo "     ~/.claude/contest-collector-staging/$GITHUB_LOGIN_FINAL/"
 echo "   This stays on your machine. NOTHING reaches the demo repo automatically."
 echo ""
-echo "3. When you finish a session you want to submit, ask the AI:"
-echo "     'archive this session into the contest repo'  (or any equivalent phrasing)"
-echo "   or run the slash command:"
-echo "     /contest-snapshot"
-echo "   or run the script directly:"
-echo "     python3 tools/export-session.py --latest          # preview"
-echo "     python3 tools/export-session.py --latest --confirm  # really export"
+echo "3. To submit a session into the demo repo, run from the demo repo root:"
+echo "     python3 $TOOLS_REL/export-session.py --latest          # preview"
+echo "     python3 $TOOLS_REL/export-session.py --latest --confirm  # really export"
+echo "   You can also ask the AI: 'archive this session into the contest repo'."
 echo ""
-echo "4. Commit + push logs as part of your normal flow:"
+echo "4. Only the new files under logs/<github_login>/ need to be committed:"
 echo "     git add logs/ && git commit -s -m 'logs: capture session' && git push"
+echo "   Everything else lives in ~/.claude/, NOT in your demo repo."
 echo ""

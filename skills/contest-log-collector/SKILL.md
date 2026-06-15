@@ -40,7 +40,7 @@ description: "为 openvela AI 大赛归集 AI Coding 日志,采用 staging + 显
 - "归档刚才的对话"
 - "archive this session"
 
-AI 会先跑 `tools/export-session.py --latest`(预览),把要导的 session 给选手看,等选手确认后再加 `--confirm` 真写入。
+AI 会先跑 `../.claude/skills/contest-log-collector/tools/export-session.py --latest`(预览),把要导的 session 给选手看,等选手确认后再加 `--confirm` 真写入。
 
 ### 2. Slash command(Claude Code 支持)
 
@@ -54,20 +54,20 @@ AI 会先跑 `tools/export-session.py --latest`(预览),把要导的 session 给
 
 ```bash
 # 列出 staging 里所有 session
-python3 tools/export-session.py --list
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --list
 
 # 预览要导出哪个 (默认就是 preview, 不写文件)
-python3 tools/export-session.py --latest
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --latest
 
 # 真导出 (加 --confirm)
-python3 tools/export-session.py --latest --confirm
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --latest --confirm
 
 # 按精确 session ID 导出 (推荐用法,避免 --latest 误选)
-python3 tools/export-session.py --session <session-id> --confirm
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --session <session-id> --confirm
 
 # 按日期导出
-python3 tools/export-session.py --today --confirm
-python3 tools/export-session.py --since 2026-06-15 --confirm
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --today --confirm
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --since 2026-06-15 --confirm
 ```
 
 > ⚠️ **隐私默认**: 不加 `--confirm` 时只是预览,不会写任何文件,看清楚要导哪个再加 `--confirm`。这是为了避免误导出上一场不该上传的对话。
@@ -123,7 +123,7 @@ git push
   - `.claude/shared/` — snapshot core(给 export 工具用)
   - `.claude/commands/contest-snapshot.md` — slash command
   - `.opencode/plugins/contest-collector.js` — OpenCode plugin
-  - `tools/export-session.py` + `render-log.py` + `validate-log.py`
+  - `../.claude/skills/contest-log-collector/tools/export-session.py` + `render-log.py` + `validate-log.py`
   - `schema/event.schema.json` + `manifest.schema.json`
   - `JUDGE_GUIDE.md` — 评委指南
   - `USAGE.md` — 选手手册

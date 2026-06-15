@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 # openvela AI Contest - collector install verification script
-# Run from the contestant demo repo root after install.sh finishes.
+# Run from anywhere after install.sh finishes. Verifies the machine-wide
+# install (no per-repo files are expected by design).
 
 set -u
 
@@ -14,12 +15,6 @@ fi
 if ! command -v node >/dev/null; then
   echo "⚠️  node not found (only needed if using OpenCode)"
 fi
-
-if [ ! -d .git ]; then
-  echo "❌ not in a git repository"; exit 1
-fi
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-cd "$REPO_ROOT"
 
 PASS=0
 FAIL=0
@@ -51,21 +46,10 @@ check_executable() {
   fi
 }
 
-echo "─── files in contestant demo repo ───"
-check_file ".opencode/plugins/contest-collector.js" "OpenCode plugin"
-check_file ".claude/shared/snapshot_core.py" "Shared snapshot core"
-check_file ".claude/shared/get_github_login.py" "GitHub login detector"
-check_file ".claude/commands/contest-snapshot.md" "Slash command"
-check_executable "tools/render-log.py" "Render tool"
-check_executable "tools/validate-log.py" "Validate tool"
-check_executable "tools/export-session.py" "Export tool"
-check_file "schema/event.schema.json" "Event schema"
-check_file "schema/manifest.schema.json" "Manifest schema"
-
-echo ""
 echo "─── global hook (machine-wide) ───"
 check_executable "$HOME/.claude/contest-shared/contest-snapshot.sh" "Global hook script"
 check_file "$HOME/.claude/contest-shared/snapshot_core.py" "Global snapshot core"
+check_file "$HOME/.claude/contest-shared/get_github_login.py" "GitHub login detector"
 if [ -f "$HOME/.claude/settings.json" ] \
    && grep -q "contest-shared/contest-snapshot.sh" "$HOME/.claude/settings.json"; then
   echo "✅ ~/.claude/settings.json registers global Stop+SessionEnd hook"
@@ -75,6 +59,10 @@ else
   echo "   Re-run install.sh to fix."
   FAIL=$((FAIL+1))
 fi
+
+echo ""
+echo "─── opencode global plugin ───"
+check_file "$HOME/.config/opencode/plugin/contest-collector.js" "OpenCode global plugin"
 
 echo ""
 echo "─── identity (~/.claude/contest-collector.env) ───"
@@ -97,7 +85,7 @@ if [ -f "$GLOBAL_ENV" ]; then
     FAIL=$((FAIL+1))
   fi
 else
-  echo "❌ $GLOBAL_ENV does not exist — re-run install.sh"
+  echo "❌ $GLOBAL_ENV does not exist - re-run install.sh"
   FAIL=$((FAIL+1))
 fi
 
@@ -109,10 +97,20 @@ if [ -d "$STAGING" ]; then
   PASS=$((PASS+1))
   COUNT=$(find "$STAGING" -name "*.jsonl" -type f 2>/dev/null | wc -l)
   if [ "$COUNT" -gt 0 ]; then
-    echo "   currently holds $COUNT session(s) (run 'python3 tools/export-session.py --list' to see)"
+    echo "   currently holds $COUNT session(s)"
   fi
 else
   echo "⚠️  staging dir does not exist yet (will be created on first AI session)"
+fi
+
+echo ""
+echo "─── jsonschema (required by validate-log.py) ───"
+if python3 -c "import jsonschema" 2>/dev/null; then
+  echo "✅ jsonschema available"
+  PASS=$((PASS+1))
+else
+  echo "❌ jsonschema not installed; run: pip3 install --user jsonschema"
+  FAIL=$((FAIL+1))
 fi
 
 echo ""
@@ -149,4 +147,7 @@ if [ "$FAIL" -gt 0 ]; then
   exit 1
 fi
 echo ""
-echo "✅ All checks passed. Start AI work; ask the AI 'archive this session into the contest repo' to export."
+echo "✅ All checks passed."
+echo "   Demo repo is intentionally untouched - no per-repo files installed."
+echo "   When you want to submit a session, run from the demo repo root:"
+echo "     python3 ../.claude/skills/contest-log-collector/tools/export-session.py --latest --confirm"

@@ -120,7 +120,7 @@ Stop hook 自动落 staging。
 - "package this conversation"
 - "归档对话"
 
-AI 会先跑 `tools/export-session.py --latest`(预览),把要导的 session 给你看,等你确认后再加 `--confirm` 真写入。
+AI 会先跑 `../.claude/skills/contest-log-collector/tools/export-session.py --latest`(预览),把要导的 session 给你看,等你确认后再加 `--confirm` 真写入。
 
 ### 方式 B: Slash Command (Claude Code)
 
@@ -134,19 +134,19 @@ AI 会先跑 `tools/export-session.py --latest`(预览),把要导的 session 给
 
 ```bash
 # 1. 列出 staging 里所有 session,确认要导哪个
-python3 tools/export-session.py --list
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --list
 
 # 2. 预览要导出的 session (默认就是预览,不写文件)
-python3 tools/export-session.py --latest
-python3 tools/export-session.py --session <session-id>
-python3 tools/export-session.py --today
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --latest
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --session <session-id>
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --today
 
 # 3. 看清楚后,加 --confirm 真导出
-python3 tools/export-session.py --latest --confirm
-python3 tools/export-session.py --session <session-id> --confirm
-python3 tools/export-session.py --today --confirm
-python3 tools/export-session.py --since 2026-06-15 --confirm
-python3 tools/export-session.py --all --confirm
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --latest --confirm
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --session <session-id> --confirm
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --today --confirm
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --since 2026-06-15 --confirm
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --all --confirm
 ```
 
 > ⚠️ **关键: 不加 `--confirm` 时永远只是预览,不会写任何文件**。
@@ -221,10 +221,10 @@ git push
 
 ```bash
 # 终端预览(彩色)
-python3 tools/render-log.py logs/<your-github-login>/
+python3 ../.claude/skills/contest-log-collector/tools/render-log.py logs/<your-github-login>/
 
 # 生成 HTML 报告(浏览器打开)
-python3 tools/render-log.py logs/<your-github-login>/ \
+python3 ../.claude/skills/contest-log-collector/tools/render-log.py logs/<your-github-login>/ \
   --format html --out my-report.html
 ```
 
@@ -253,7 +253,7 @@ ls -lt ~/.claude/contest-collector-staging/<your-github-login>/<today>/
 ### 5.3 export 后自检合规性
 
 ```bash
-python3 tools/validate-log.py logs/
+python3 ../.claude/skills/contest-log-collector/tools/validate-log.py logs/
 ```
 
 应该输出 `ALL OK`。报错大概率是工具 bug,发组委会群报。
@@ -279,7 +279,7 @@ rm <session-id>.jsonl
 
 ### Q3: 我能改 staging / logs 里的内容吗?
 
-`tools/validate-log.py` 会检测 seq 缺号、跨字段不一致、manifest 与文件对不上等手脚,**改 log 等于作弊**。
+`../.claude/skills/contest-log-collector/tools/validate-log.py` 会检测 seq 缺号、跨字段不一致、manifest 与文件对不上等手脚,**改 log 等于作弊**。
 
 但**删除整个 session**(导出前在 staging 删除)是允许的 — 这跟"不打包"等价,评委看不到。
 
@@ -298,10 +298,10 @@ rm <session-id>.jsonl
 
 ```bash
 # 看看还有多少没导出的 session
-python3 tools/export-session.py --list
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --list
 
 # 一次性全导出
-python3 tools/export-session.py --all
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --all
 git add logs/ && git commit -s -m "logs: final batch" && git push
 ```
 
@@ -340,42 +340,32 @@ git add logs/ && git commit -s -m "logs: final batch" && git push
 
 ## 7. 工具自带文件清单
 
-`repo sync` 拉下来的工程长这样,**`.claude/` 是工具仓**(跟你 demo 仓平级),**不是装在你 demo 仓里**:
+`repo sync` 拉下来的工程长这样。**install.sh 不会在你的 demo 仓里复制任何文件** — 工具源都在 `.claude/` 工具仓里直接调用,你的 demo 仓**只会出现 `logs/` 目录**(且只在你 `--confirm` 导出后):
 
 ```
 <你的工作树>/                            # repo init 拉到的工作树根
 ├── .repo/                              # repo 工具元数据
 ├── .claude/                            # 大赛工具仓 (open-vela/.claude, 由 manifest 拉下来)
 │   └── skills/contest-log-collector/
-│       ├── adapters/                   # snapshot core / opencode plugin 源
-│       ├── commands/                   # slash command 源
-│       ├── tools/                      # export / render / validate 工具源
-│       ├── schema/                     # JSONL 契约源
+│       ├── adapters/                   # snapshot core / opencode plugin 源 (install 会复制到 ~/.claude/)
+│       ├── commands/                   # slash command (Claude Code 自动找 ~/.claude/)
+│       ├── tools/                      # export / render / validate (选手 + 评委直接调用)
+│       ├── schema/                     # JSONL 契约 (validate-log.py 自动找)
 │       └── onboarding/
-│           ├── install.sh              # 一次性安装脚本
+│           ├── install.sh              # 一次性安装脚本 (装到 ~/.claude/)
 │           ├── verify-setup.sh         # 健康检查
-│           ├── USAGE.md                # 本文件 (源)
-│           └── JUDGE_GUIDE.md          # 评委指南 (源)
+│           ├── USAGE.md                # 本文件
+│           └── JUDGE_GUIDE.md          # 评委指南
 ├── nuttx/  apps/  vendor/  ...         # openvela 全量源码
 └── <你的 demo 仓>/                      # 例如 contest2026-042-app
-    │                                   # — 跑过 install.sh 后,以下内容会出现 —
-    ├── .gitignore                      # 已加日志相关排除
-    ├── .claude/
-    │   ├── shared/                     # snapshot core (export 工具用,从 .claude 工具仓 cp 过来)
-    │   └── commands/contest-snapshot.md # slash command
-    ├── .opencode/
-    │   └── plugins/contest-collector.js # OpenCode plugin
-    ├── tools/
-    │   ├── export-session.py           # 主动导出工具 (核心!)
-    │   ├── render-log.py               # 日志渲染 (评委用)
-    │   └── validate-log.py             # 防作弊校验 (评委用)
-    ├── schema/                         # JSONL 契约 (validate-log.py 要)
-    ├── USAGE.md                        # 选手手册 (从工具仓 cp 过来)
-    ├── JUDGE_GUIDE.md                  # 评委指南
-    └── logs/                           # 选手主动导出 session 后才会出现
+    ├── (你的代码、README、配置等 — install.sh 不动)
+    └── logs/                           # 只有你跑了 export --confirm 后才会出现
+        └── <your-github-login>/
+            ├── manifest.json
+            └── <date>/<tool>__<sid>.jsonl
 ```
 
-另外,组委会还在你的 home 目录装了一份**全局 hook**:
+组委会的 install.sh 把**全部工具状态都装在你的 home 目录**,不进 demo 仓:
 
 ```
 ~/.claude/
@@ -389,9 +379,13 @@ git add logs/ && git commit -s -m "logs: final batch" && git push
     └── <your-github-login>/
         ├── manifest.json
         └── <date>/<tool>__<sid>.jsonl
+
+~/.config/opencode/plugin/
+└── contest-collector.js                # OpenCode 全局 plugin
 ```
 
 **全局 hook 不会自己 push**,只在你电脑本地写文件。push 由你自己控制。
+**整个 demo 仓里只会出现 `logs/<your-github-login>/...`,其他啥都没有。**
 
 ---
 
