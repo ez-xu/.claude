@@ -8,12 +8,12 @@ Privacy-first flow: always preview first, then ask for confirmation, then actual
 
 Steps:
 
-1. Run `python3 tools/export-session.py --latest` (no --confirm). This shows
+1. Run `python3 ../.claude/skills/contest-log-collector/tools/export-session.py --latest` (no --confirm). This shows
    the contestant exactly which session(s) would be copied, but writes
    nothing. Display the preview output to the contestant.
 2. Ask the contestant: "this is the session I would copy into the contest
    repo, OK to confirm?" Wait for an affirmative reply.
-3. On confirmation, run `python3 tools/export-session.py --latest --confirm`
+3. On confirmation, run `python3 ../.claude/skills/contest-log-collector/tools/export-session.py --latest --confirm`
    to actually write the session into `logs/<github_login>/<date>/`.
 4. If the contestant says they want a different session, refine the
    selection: `--today`, `--session <id>`, `--since <date>`, or `--all`.
