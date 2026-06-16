@@ -87,11 +87,15 @@ def filter_sessions(sessions: list[dict], args) -> list[dict]:
                 datetime.strptime(args.since, "%Y-%m-%d").date(),
                 datetime.min.time(), tzinfo=timezone.utc,
             )
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=timezone.utc)
         result = []
         for s in sessions:
             ts = s.get("last_event_at") or s.get("started_at") or ""
             try:
                 ev_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                if ev_dt.tzinfo is None:
+                    ev_dt = ev_dt.replace(tzinfo=timezone.utc)
                 if ev_dt >= cutoff:
                     result.append(s)
             except ValueError:
