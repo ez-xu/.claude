@@ -65,6 +65,20 @@ echo "─── opencode global plugin ───"
 check_file "$HOME/.config/opencode/plugin/contest-collector.js" "OpenCode global plugin"
 
 echo ""
+echo "─── contest-snapshot shortcut ───"
+check_executable "$HOME/.local/bin/contest-snapshot" "Shortcut script"
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*)
+    echo "✅ ~/.local/bin is on PATH"
+    PASS=$((PASS+1))
+    ;;
+  *)
+    echo "⚠️  ~/.local/bin is NOT on PATH; use full python3 path instead, or append it:"
+    echo "      echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc"
+    ;;
+esac
+
+echo ""
 echo "─── identity (~/.claude/contest-collector.env) ───"
 GLOBAL_ENV="$HOME/.claude/contest-collector.env"
 if [ -f "$GLOBAL_ENV" ]; then
@@ -150,4 +164,5 @@ echo ""
 echo "✅ All checks passed."
 echo "   Demo repo is intentionally untouched - no per-repo files installed."
 echo "   When you want to submit a session, run from the demo repo root:"
-echo "     python3 ../.claude/skills/contest-log-collector/tools/export-session.py --latest --confirm"
+echo "     contest-snapshot --latest --confirm                                                 # short form (recommended)"
+echo "     python3 ../.claude/skills/contest-log-collector/tools/export-session.py --latest --confirm   # full path fallback"
