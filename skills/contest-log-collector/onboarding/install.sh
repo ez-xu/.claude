@@ -184,6 +184,48 @@ MERGE_PY
 
 TOOLS_REL="../.claude/skills/contest-log-collector/tools"
 
+USER_BIN_DIR="${HOME}/.local/bin"
+USER_SHORTCUT="$USER_BIN_DIR/contest-snapshot"
+mkdir -p "$USER_BIN_DIR"
+
+cat > "$USER_SHORTCUT" <<'SHORTCUT_EOF'
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# openvela AI Contest - export-session.py shortcut.
+# Resolves the export-session.py script via 'git rev-parse --show-toplevel'
+# of the current working directory, then walks one level up to find the
+# sibling .claude/ tools repo. Forwards all args verbatim.
+set -eu
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$REPO_ROOT" ]; then
+  echo "❌ contest-snapshot must be run from inside your demo repo" >&2
+  exit 2
+fi
+
+EXPORT_PY="$REPO_ROOT/../.claude/skills/contest-log-collector/tools/export-session.py"
+if [ ! -f "$EXPORT_PY" ]; then
+  echo "❌ cannot locate export-session.py at $EXPORT_PY" >&2
+  echo "   Did 'repo sync' pull the .claude tools repo as a sibling?" >&2
+  exit 2
+fi
+
+exec python3 "$EXPORT_PY" "$@"
+SHORTCUT_EOF
+chmod +x "$USER_SHORTCUT"
+echo "✅ $USER_SHORTCUT (short command: contest-snapshot)"
+
+case ":$PATH:" in
+  *":$USER_BIN_DIR:"*)
+    ;;
+  *)
+    echo "⚠️  $USER_BIN_DIR is NOT in your PATH"
+    echo "   To use the 'contest-snapshot' short command, add it once:"
+    echo "     echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc"
+    echo "     (or your shell's equivalent rc file)"
+    ;;
+esac
+
 echo ""
 echo "─────────────────────────────────────────────────────"
 echo "📋 NEXT STEPS"
@@ -197,9 +239,11 @@ echo "   Every session is staged silently to:"
 echo "     ~/.claude/contest-collector-staging/$GITHUB_LOGIN_FINAL/"
 echo "   This stays on your machine. NOTHING reaches the demo repo automatically."
 echo ""
-echo "3. To submit a session into the demo repo, run from the demo repo root:"
-echo "     python3 $TOOLS_REL/export-session.py --latest          # preview"
-echo "     python3 $TOOLS_REL/export-session.py --latest --confirm  # really export"
+echo "3. To submit a session, run from the demo repo root:"
+echo "     contest-snapshot --latest          # preview"
+echo "     contest-snapshot --latest --confirm  # really export"
+echo "   Or, if ~/.local/bin is not on PATH, use the full path:"
+echo "     python3 $TOOLS_REL/export-session.py --latest --confirm"
 echo "   You can also ask the AI: 'archive this session into the contest repo'."
 echo ""
 echo "4. Only the new files under logs/<github_login>/ need to be committed:"

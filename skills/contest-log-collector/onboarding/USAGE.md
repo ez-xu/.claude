@@ -132,21 +132,36 @@ AI 会先跑 `../.claude/skills/contest-log-collector/tools/export-session.py --
 
 ### 方式 C: 直接跑脚本
 
+`install.sh` 在 `~/.local/bin/` 装好了短命令 `contest-snapshot`,自动跳转到工具仓的 `export-session.py`,**强烈推荐使用**:
+
 ```bash
 # 1. 列出 staging 里所有 session,确认要导哪个
-python3 ../.claude/skills/contest-log-collector/tools/export-session.py --list
+contest-snapshot --list
 
 # 2. 预览要导出的 session (默认就是预览,不写文件)
-python3 ../.claude/skills/contest-log-collector/tools/export-session.py --latest
-python3 ../.claude/skills/contest-log-collector/tools/export-session.py --session <session-id>
-python3 ../.claude/skills/contest-log-collector/tools/export-session.py --today
+contest-snapshot --latest
+contest-snapshot --session <session-id>
+contest-snapshot --today
 
 # 3. 看清楚后,加 --confirm 真导出
+contest-snapshot --latest --confirm
+contest-snapshot --session <session-id> --confirm
+contest-snapshot --today --confirm
+contest-snapshot --since 2026-06-15 --confirm
+contest-snapshot --all --confirm
+```
+
+如果 `~/.local/bin` 不在 PATH 上,执行一次:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+或者用完整路径作为 fallback:
+
+```bash
 python3 ../.claude/skills/contest-log-collector/tools/export-session.py --latest --confirm
-python3 ../.claude/skills/contest-log-collector/tools/export-session.py --session <session-id> --confirm
-python3 ../.claude/skills/contest-log-collector/tools/export-session.py --today --confirm
-python3 ../.claude/skills/contest-log-collector/tools/export-session.py --since 2026-06-15 --confirm
-python3 ../.claude/skills/contest-log-collector/tools/export-session.py --all --confirm
 ```
 
 > ⚠️ **关键: 不加 `--confirm` 时永远只是预览,不会写任何文件**。
