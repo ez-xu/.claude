@@ -5,8 +5,9 @@ Export AI Coding sessions from staging into the demo repo's logs/ directory.
 Staging path:  ~/.claude/contest-collector-staging/<github_login>/<date>/<tool>__<sid>.jsonl
 Target path:   <repo_root>/logs/<github_login>/<date>/<tool>__<sid>.jsonl
 
-This is the contestant's *consent gate*: nothing reaches the demo repo until
-this script copies it.
+Normally sessions auto-export into the demo repo's logs/ at session end
+(see the adapters). This script is the manual path: list, re-export, or
+selectively export staged sessions.
 
 Usage:
   python3 tools/export-session.py --latest
