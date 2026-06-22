@@ -31,9 +31,16 @@ If the export tool reports no sessions, tell the contestant their staging is
 empty — possibly because the global hook is not installed or because no AI
 session has ended yet.
 
+If the contestant wants to recover historical Claude Code sessions from
+before the hook was installed, run:
+  `contest-snapshot --backfill`
+This scans ~/.claude/projects/ for all Claude Code transcripts and imports
+any that haven't been captured yet. Idempotent (safe to run multiple times).
+
 If `contest-snapshot` is not found in PATH, use the full fallback:
 
 ```
 python3 ../.claude/skills/contest-log-collector/tools/export-session.py --latest
 python3 ../.claude/skills/contest-log-collector/tools/export-session.py --latest --confirm
+python3 ../.claude/skills/contest-log-collector/tools/export-session.py --backfill
 ```

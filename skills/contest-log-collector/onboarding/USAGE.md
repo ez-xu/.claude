@@ -164,6 +164,23 @@ contest-snapshot --all --confirm
 
 > ⚠️ **提示**: 正常流程下,你只需要关注 `git push`。手动工具仅用于补救或管理。
 
+### 3.3 补回历史对话 (--backfill)
+
+如果你在**安装 hook 之前**就开始用 Claude Code 开发了,那些历史对话仍保存在本机(`~/.claude/projects/`)。用以下命令一键补回:
+
+```bash
+# 在选手仓内执行
+contest-snapshot --backfill
+```
+
+命令会自动扫描 Claude Code 的所有历史 transcript,把还没采集过的会话补导进 `logs/`。跑完后:
+
+```bash
+git add logs/ && git commit -s -m "logs: backfill history" && git push
+```
+
+> 幂等:多次跑不会产生重复。已采集过的会话会自动跳过。
+
 ---
 
 ## 4. 隐私保护 — 这个工具到底采集什么
