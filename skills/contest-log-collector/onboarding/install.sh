@@ -138,16 +138,28 @@ cat > "$USER_CONTEST_DIR/contest-snapshot.sh" <<'GLOBAL_HOOK_EOF'
 set -eu
 
 GLOBAL_ENV="$HOME/.claude/contest-collector.env"
-[ -f "$GLOBAL_ENV" ] || exit 0
+if [ ! -f "$GLOBAL_ENV" ]; then
+  echo "[session-log] hook skipped: $GLOBAL_ENV not found (run install.sh first)" >&2
+  exit 0
+fi
 
 set -a
 . "$GLOBAL_ENV"
 set +a
 
-[ -z "${TEAM_ID:-}" ] && exit 0
+if [ -z "${TEAM_ID:-}" ]; then
+  echo "[session-log] hook skipped: TEAM_ID is empty in $GLOBAL_ENV" >&2
+  exit 0
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec python3 "$SCRIPT_DIR/snapshot_core.py" --tool claude-code
+CORE="$SCRIPT_DIR/snapshot_core.py"
+if [ ! -f "$CORE" ]; then
+  echo "[session-log] hook FATAL: snapshot_core.py not found at $CORE" >&2
+  exit 2
+fi
+
+exec python3 "$CORE" --tool claude-code
 GLOBAL_HOOK_EOF
 chmod +x "$USER_CONTEST_DIR/contest-snapshot.sh"
 echo "✅ ~/.claude/contest-shared/ (Claude Code + Codex global hook)"
