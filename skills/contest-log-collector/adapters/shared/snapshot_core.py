@@ -380,16 +380,12 @@ def process_claude_stdin(stdin_data: dict, tool: str, team_id: str) -> int:
         return 1
 
     if not transcript_path_str:
-        # OpenCode 1.15+ shares .claude/settings.json hooks; bridged events have no transcript and are handled by the OpenCode plugin instead.
-        if stdin_data.get("hook_source") == "opencode-plugin":
-            sys.stderr.write(
-                "[session-log] skipping OpenCode-bridged hook event "
-                "(handled by OpenCode plugin)\n"
-            )
-            return 0
-        report_error(member_dir, "no_transcript_path", {"tool": tool, "session_id": session_id, "stdin": stdin_data},
-                     "stdin payload missing transcript_path")
-        return 1
+        sys.stderr.write(
+            "[session-log] skipping: stdin has no transcript_path "
+            f"(event={stdin_data.get('hook_event_name', '?')}, "
+            f"session={session_id[:12] if session_id else '?'})\n"
+        )
+        return 0
     transcript_path = Path(transcript_path_str)
 
     raw_events = load_transcript(transcript_path)
