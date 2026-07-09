@@ -476,11 +476,16 @@ def auto_export_to_repo(repo_root: Path, staging_member_dir: Path, staging_jsonl
         dest_jsonl.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(staging_jsonl, dest_jsonl)
 
+        actual_count = sum(1 for line in dest_jsonl.read_text(encoding="utf-8").splitlines() if line.strip())
+
         staging_manifest = read_manifest(staging_member_dir, team_id, github_login, tool)
         src_entry = next((s for s in staging_manifest.get("sessions", [])
                           if s.get("session_id") == session_id), None)
         if src_entry is None:
             return
+        src_entry["event_count"] = actual_count
+        src_entry["file_path"] = f"logs/{github_login}/{staging_jsonl.relative_to(staging_member_dir)}"
+
         dest_manifest = read_manifest(dest_member, team_id, github_login, tool)
         existing = next((s for s in dest_manifest.get("sessions", [])
                          if s.get("session_id") == session_id), None)
