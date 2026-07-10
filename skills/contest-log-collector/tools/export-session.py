@@ -219,17 +219,30 @@ def cmd_backfill(args) -> int:
         sys.stderr.write("No transcript files found in Claude Code history.\n")
         return 0
 
-    team_id = subprocess.check_output(
-        ["bash", "-c", "source ~/.claude/contest-collector.env 2>/dev/null && echo $TEAM_ID"],
+    env_vars = subprocess.check_output(
+        ["bash", "-c",
+         "source ~/.claude/contest-collector.env 2>/dev/null && "
+         "echo \"TEAM_ID=${TEAM_ID:-}\" && echo \"GITHUB_LOGIN=${GITHUB_LOGIN:-}\""],
         text=True,
-    ).strip() or ""
+    ).strip()
+    env_map = dict(line.split("=", 1) for line in env_vars.splitlines() if "=" in line)
+    team_id = env_map.get("TEAM_ID", "").strip()
+    github_login = env_map.get("GITHUB_LOGIN", "").strip()
     if not team_id:
         sys.stderr.write("TEAM_ID not found. Run install.sh first.\n")
+        return 2
+    if not github_login:
+        sys.stderr.write("GITHUB_LOGIN not found in ~/.claude/contest-collector.env. "
+                         "Re-run install.sh with --github-login <your-name>.\n")
         return 2
 
     print(f"Found {len(transcripts)} transcript(s) in Claude Code history.")
     print(f"Destination: {dest}/logs/")
+    print(f"GitHub login: {github_login}")
     print()
+
+    child_env = {**subprocess.os.environ, "TEAM_ID": team_id,
+                 "GITHUB_LOGIN": github_login, "CWD": str(dest)}
 
     success = 0
     skipped = 0
@@ -245,7 +258,7 @@ def cmd_backfill(args) -> int:
             result = subprocess.run(
                 [sys.executable, str(core_py), "--tool", "claude-code"],
                 input=payload, text=True, capture_output=True,
-                env={**subprocess.os.environ, "TEAM_ID": team_id, "CWD": str(dest)},
+                env=child_env,
                 cwd=str(dest),
             )
             if result.returncode == 0:

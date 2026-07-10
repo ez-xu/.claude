@@ -11,8 +11,11 @@
 #   1. ~/.config/gh/hosts.yml active user (offline + authoritative)
 #   2. gh api user --jq .login (network + authoritative)
 #   3. basic auth user in git remote URL (strong signal)
-#   4. git remote owner (after excluding org) - current simple impl, org detection delegated to caller
-#   5. git config user.email noreply pattern
+#   4. git config user.email noreply pattern (last resort)
+#
+# Deliberately NOT used: git remote owner. The owner of a fork can be an
+# organization (e.g. iotpi/foo, open-vela/foo), which is NOT the individual
+# contributor's github login and would mis-attribute logs.
 #
 # Returns (None, None) on failure to let caller fallback.
 
@@ -93,23 +96,6 @@ def _from_remote_basic_auth(repo_root: Path) -> tuple[str | None, str | None]:
     return (None, None)
 
 
-def _from_remote_owner(repo_root: Path) -> tuple[str | None, str | None]:
-    url = _git_remote_url(repo_root)
-    if not url:
-        return (None, None)
-    patterns = [
-        r"^git@github\.com:([^/]+)/",
-        r"^https?://(?:[^@]+@)?github\.com/([^/]+)/",
-    ]
-    for pat in patterns:
-        m = re.match(pat, url)
-        if m:
-            owner = m.group(1)
-            if GITHUB_LOGIN_RE.match(owner):
-                return (owner, "remote-owner")
-    return (None, None)
-
-
 def _from_noreply_email(repo_root: Path) -> tuple[str | None, str | None]:
     try:
         r = subprocess.run(
@@ -135,7 +121,6 @@ def resolve_github_login(repo_root: Path) -> tuple[str | None, str | None]:
         _from_gh_hosts,
         _from_gh_api,
         lambda: _from_remote_basic_auth(repo_root),
-        lambda: _from_remote_owner(repo_root),
         lambda: _from_noreply_email(repo_root),
     ):
         login, source = fn()
