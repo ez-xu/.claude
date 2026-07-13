@@ -236,12 +236,6 @@ def cmd_backfill(args) -> int:
             print(f"[--force] wiping staging at {staging}")
             shutil.rmtree(staging)
 
-    if args.force:
-        staging = staging_root()
-        if staging.exists():
-            print(f"[--force] wiping staging at {staging}")
-            shutil.rmtree(staging)
-
     claude_projects = Path.home() / ".claude" / "projects"
     if not claude_projects.is_dir():
         sys.stderr.write(f"No Claude Code history found at {claude_projects}\n")
@@ -338,11 +332,6 @@ def main() -> int:
                    help="Scan Claude Code history (~/.claude/projects/) and "
                         "re-process all transcripts. Recovers sessions that "
                         "were created before the hook was installed.")
-    p.add_argument("--force", action="store_true",
-                   help="With --backfill, wipe the local staging first so all "
-                        "transcripts are re-processed even if they were "
-                        "captured before. Useful after cleaning logs/ to "
-                        "rebuild from scratch.")
     p.add_argument("--force", action="store_true",
                    help="With --backfill, wipe the local staging first so all "
                         "transcripts are re-processed even if they were "
