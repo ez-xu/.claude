@@ -87,7 +87,15 @@ opencode
 
 OpenCode V1 plugin 已预装,session 结束自动落 staging。
 
-### 2.3 Codex CLI
+### 2.3 MiMo Code (CLI / TUI,基于 OpenCode)
+
+```bash
+mimo
+```
+
+MiMo Code 基于 OpenCode,plugin 机制完全兼容。`install.sh` 会自动安装到 `~/.config/mimocode/plugins/` 并在 `tui.json` 中注册。consent 提示与 OpenCode 一致。
+
+### 2.4 Codex CLI
 
 ```bash
 codex

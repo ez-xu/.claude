@@ -118,7 +118,8 @@ USER_CONTEST_DIR="$USER_CLAUDE_DIR/contest-shared"
 USER_STAGING_DIR="$USER_CLAUDE_DIR/contest-collector-staging"
 USER_GLOBAL_ENV="$USER_CLAUDE_DIR/contest-collector.env"
 USER_OPENCODE_DIR="${HOME}/.config/opencode/plugin"
-mkdir -p "$USER_CLAUDE_DIR" "$USER_CONTEST_DIR" "$USER_STAGING_DIR" "$USER_OPENCODE_DIR"
+USER_MIMOCODE_DIR="${HOME}/.config/mimocode/plugins"
+mkdir -p "$USER_CLAUDE_DIR" "$USER_CONTEST_DIR" "$USER_STAGING_DIR" "$USER_OPENCODE_DIR" "$USER_MIMOCODE_DIR"
 
 if [ ! -f "$USER_GLOBAL_ENV" ]; then
   cat > "$USER_GLOBAL_ENV" <<EOF
@@ -167,6 +168,29 @@ echo "✅ ~/.claude/contest-shared/ (Claude Code + Codex global hook)"
 cp "$SOURCE_ROOT/adapters/opencode/collector.js" "$USER_OPENCODE_DIR/contest-collector.js"
 echo "✅ ~/.config/opencode/plugin/contest-collector.js (OpenCode global plugin)"
 
+cp "$SOURCE_ROOT/adapters/opencode/collector.js" "$USER_MIMOCODE_DIR/contest-collector.js"
+echo "✅ ~/.config/mimocode/plugins/contest-collector.js (MiMo Code global plugin)"
+
+USER_MIMOCODE_TUI="${HOME}/.config/mimocode/tui.json"
+python3 - "$USER_MIMOCODE_TUI" <<'MIMOCODE_TUI_PY'
+import json, sys, os
+path = sys.argv[1]
+existing = {}
+if os.path.exists(path):
+    try:
+        existing = json.loads(open(path).read())
+    except Exception:
+        pass
+plugins = existing.setdefault("plugin", [])
+marker = "contest-collector.js"
+if not any(marker in str(p) for p in plugins):
+    plugins.append(["./plugins/contest-collector.js", {"enabled": True}])
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, "w") as f:
+    json.dump(existing, f, indent=2, ensure_ascii=False)
+print("✅ ~/.config/mimocode/tui.json (MiMo Code plugin registered)")
+MIMOCODE_TUI_PY
+
 USER_SETTINGS="$USER_CLAUDE_DIR/settings.json"
 GLOBAL_HOOK_CMD="bash $USER_CONTEST_DIR/contest-snapshot.sh"
 
@@ -184,7 +208,7 @@ if os.path.exists(path):
             data = {}
 hooks = data.setdefault("hooks", {})
 contest_marker = "contest-shared/contest-snapshot.sh"
-for event in ("Stop", "SessionEnd"):
+for event in ("Stop", "SessionEnd", "UserPromptSubmit"):
     arr = hooks.setdefault(event, [])
     if any(contest_marker in str(h) for group in arr for h in group.get("hooks", [])):
         continue
