@@ -87,15 +87,7 @@ opencode
 
 OpenCode V1 plugin 已预装,session 结束自动落 staging。
 
-### 2.3 MiMo Code (CLI / TUI,基于 OpenCode)
-
-```bash
-mimo
-```
-
-MiMo Code 基于 OpenCode,plugin 机制完全兼容。`install.sh` 会自动安装到 `~/.config/mimocode/plugins/` 并在 `tui.json` 中注册。consent 提示与 OpenCode 一致。
-
-### 2.4 Codex CLI
+### 2.3 Codex CLI
 
 ```bash
 codex
@@ -400,7 +392,83 @@ git add logs/ && git commit -s -m "logs: final batch" && git push
 
 ---
 
-## 8. 反馈与支持
+## 8. Windows 用户操作指南
+
+Windows 用户无需 WSL,只需 **Python 3 + Git** 即可使用全部功能。
+
+### 8.1 环境准备(一次性)
+
+1. **安装 Python 3**: 从 [python.org](https://www.python.org/downloads/) 下载,安装时勾选 **Add Python to PATH**。
+2. **安装 Git for Windows**: 从 [git-scm.com](https://git-scm.com/download/win) 下载,安装时会自带 **Git Bash**。
+3. **安装 Claude Code**(如使用): `npm install -g @anthropic-ai/claude-code`
+
+> 如果你已经装了 WSL,直接在 WSL 里操作即可,跳过本节,按 Linux 流程走。
+
+### 8.2 拉取 openvela 工程
+
+打开 **Git Bash**(不是 PowerShell / CMD),执行:
+
+```bash
+# 如果没有 repo 工具,先装
+mkdir -p ~/.bin
+curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
+chmod +x ~/.bin/repo
+export PATH=~/.bin:$PATH
+
+# 拉取工程
+repo init -u https://github.com/open-vela/contest2026_XXX_yourteam \
+  -b dev-ai-contest-2026 -m contest2026_XXX_yourteam.xml
+repo sync -c -j8
+```
+
+### 8.3 安装日志工具
+
+在 **Git Bash** 里,进入选手仓执行:
+
+```bash
+cd contest2026_XXX_yourteam
+
+bash ../.claude/skills/contest-log-collector/onboarding/install.sh \
+  --team-id contest2026_XXX_yourteam \
+  --github-login <你的GitHub用户名>
+```
+
+安装脚本会自动检测 Python 路径(`python3` / `python` / `py`),并在 `settings.json` 里用 Python 直接调用 `snapshot_core.py` — **不依赖 bash 执行 hook**,所以 Claude Code 的 hook 在 Windows 上也能正常触发。
+
+### 8.4 开始开发
+
+```bash
+# 在 Git Bash 里启动 Claude Code
+claude
+```
+
+第一次对话结束时,Claude Code 会问你:
+> "Do you want to upload AI coding logs? Reply 'yes' or 'no'."
+
+回答 `yes` → 后续自动上传;回答 `no` → 这个会话不上传。
+
+OpenCode / MiMo Code 用户同理,直接在 Git Bash 里运行即可。
+
+### 8.5 提交
+
+```bash
+git add logs/
+git commit -s -m "logs: capture session"
+git push
+```
+
+### 8.6 与 Mac/Linux 的区别
+
+| 步骤 | Mac/Linux | Windows |
+| --- | --- | --- |
+| 终端 | Terminal | **Git Bash** |
+| Python | 系统自带 python3 | 装 Python 3(勾选 Add to PATH) |
+| hook 执行方式 | bash 调用 | **Python 直接调用**(不依赖 bash) |
+| 其他 | 无 | **无区别** |
+
+---
+
+## 9. 反馈与支持
 
 - 技术问题: 大赛技术支持群(组委会拉)
 - 工具 bug: `https://github.com/open-vela/.claude/issues`
