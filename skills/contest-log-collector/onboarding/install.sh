@@ -63,9 +63,22 @@ if ! echo "$TEAM_ID_FINAL" | grep -qE '^[a-zA-Z][a-zA-Z0-9_-]+$'; then
 fi
 
 if [ ! -d .git ]; then
-  echo "❌ FATAL: not in a git repository. cd to your demo repo root first." >&2
+  echo "FATAL: not in a git repository. cd to your demo repo root first." >&2
   exit 2
 fi
+
+PYTHON_BIN="python3"
+if ! command -v python3 &>/dev/null; then
+  if command -v python &>/dev/null; then
+    PYTHON_BIN="python"
+  elif command -v py &>/dev/null; then
+    PYTHON_BIN="py"
+  else
+    echo "FATAL: Python not found. Install Python 3 and retry." >&2
+    exit 2
+  fi
+fi
+echo "Using Python: $PYTHON_BIN ($($PYTHON_BIN --version 2>&1))"
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
@@ -83,7 +96,7 @@ if [ -n "$GITHUB_LOGIN_OVERRIDE" ]; then
   GITHUB_LOGIN_FINAL="$GITHUB_LOGIN_OVERRIDE"
   GITHUB_LOGIN_SOURCE="cli-arg"
 else
-  DETECT_OUT=$(GITHUB_LOGIN="${GITHUB_LOGIN:-}" python3 "$SOURCE_ROOT/adapters/shared/get_github_login.py" "$REPO_ROOT" 2>&1) || DETECT_OUT=""
+  DETECT_OUT=$(GITHUB_LOGIN="${GITHUB_LOGIN:-}" "$PYTHON_BIN" "$SOURCE_ROOT/adapters/shared/get_github_login.py" "$REPO_ROOT" 2>&1) || DETECT_OUT=""
   GITHUB_LOGIN_FINAL=$(echo "$DETECT_OUT" | awk -F'\t' '{print $1}')
   GITHUB_LOGIN_SOURCE=$(echo "$DETECT_OUT" | awk -F'\t' '{print $2}')
 fi
@@ -103,14 +116,14 @@ echo "   GITHUB_LOGIN: $GITHUB_LOGIN_FINAL  (source: $GITHUB_LOGIN_SOURCE)"
 echo "   Demo repo:    $REPO_ROOT  (untouched)"
 echo ""
 
-if ! python3 -c "import jsonschema" 2>/dev/null; then
+if ! "$PYTHON_BIN" -c "import jsonschema" 2>/dev/null; then
   if pip3 install --quiet --user jsonschema 2>/dev/null; then
-    echo "✅ pip install jsonschema (required by validate-log.py)"
+    echo "pip install jsonschema (required by validate-log.py)"
   else
-    echo "⚠️  python3 -m pip install jsonschema  failed; install it manually before running validate-log.py"
+    echo "  $PYTHON_BIN -m pip install jsonschema failed; install it manually before running validate-log.py"
   fi
 else
-  echo "✓  python3 jsonschema already installed"
+  echo "  $PYTHON_BIN jsonschema already installed"
 fi
 
 USER_CLAUDE_DIR="${HOME}/.claude"
@@ -162,6 +175,7 @@ fi
 exec python3 "$CORE" --tool claude-code
 GLOBAL_HOOK_EOF
 chmod +x "$USER_CONTEST_DIR/contest-snapshot.sh"
+sed -i "s|exec python3 |exec \"$PYTHON_BIN\" |" "$USER_CONTEST_DIR/contest-snapshot.sh" 2>/dev/null || true
 echo "✅ ~/.claude/contest-shared/ (Claude Code + Codex global hook)"
 
 cp "$SOURCE_ROOT/adapters/opencode/collector.js" "$USER_OPENCODE_DIR/contest-collector.js"
@@ -170,7 +184,7 @@ echo "✅ ~/.config/opencode/plugin/contest-collector.js (OpenCode global plugin
 USER_SETTINGS="$USER_CLAUDE_DIR/settings.json"
 GLOBAL_HOOK_CMD="bash $USER_CONTEST_DIR/contest-snapshot.sh"
 
-python3 - "$USER_SETTINGS" "$GLOBAL_HOOK_CMD" <<'MERGE_PY'
+"$PYTHON_BIN" - "$USER_SETTINGS" "$GLOBAL_HOOK_CMD" <<'MERGE_PY'
 import json, sys, os
 path, cmd = sys.argv[1], sys.argv[2]
 data = {}
@@ -225,6 +239,7 @@ fi
 exec python3 "$EXPORT_PY" "$@"
 SHORTCUT_EOF
 chmod +x "$USER_SHORTCUT"
+sed -i "s|exec python3 |exec \"$PYTHON_BIN\" |" "$USER_SHORTCUT" 2>/dev/null || true
 echo "✅ $USER_SHORTCUT (short command: contest-snapshot)"
 
 case ":$PATH:" in
@@ -261,5 +276,5 @@ echo ""
 echo "   (Optional) To list or re-export a session manually:"
 echo "     contest-snapshot --list"
 echo "     contest-snapshot --session <id> --confirm"
-echo "   Or full path: python3 $TOOLS_REL/export-session.py --list"
+echo "   Or full path: $PYTHON_BIN $TOOLS_REL/export-session.py --list"
 echo ""
