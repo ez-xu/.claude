@@ -151,6 +151,7 @@ JSONL 每条事件必含字段:
 | Claude Code (大赛主推) | CLI / AIoT-IDE 内嵌 | ✅ 完全支持(包括 slash command) |
 | AIoT-IDE | VS Code fork + Claude Code 插件 | ✅ 完全支持 |
 | OpenCode | CLI / TUI / VS Code 扩展 | ✅ 完全支持 |
+| MiMo Code | CLI / TUI (基于 OpenCode) | ✅ 完全支持 |
 | Codex | CLI | ✅ 自然语言触发 |
 | Kiro | IDE | ⏸️ 暂未实现 |
 
