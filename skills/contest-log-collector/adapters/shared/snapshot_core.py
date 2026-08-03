@@ -571,15 +571,37 @@ def auto_export_to_repo(repo_root: Path, staging_member_dir: Path, staging_jsonl
         report_error(staging_member_dir, "auto_export", {"repo_root": str(repo_root), "session_id": session_id}, e)
 
 
+def load_env_file() -> None:
+    env_path = Path.home() / ".claude" / "contest-collector.env"
+    if not env_path.is_file():
+        return
+    try:
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, val = line.split("=", 1)
+                key = key.strip()
+                val = val.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = val
+    except Exception:
+        pass
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tool", required=True, choices=["claude-code", "codex"])
     args = parser.parse_args()
 
+    load_env_file()
+
     team_id = os.environ.get("TEAM_ID", "").strip()
     if not team_id:
         sys.stderr.write(
-            "[session-log] FATAL: TEAM_ID env var not set, refusing to write log to avoid mis-attribution\n"
+            "[session-log] FATAL: TEAM_ID not set (checked env + ~/.claude/contest-collector.env). "
+            "Run install.sh --team-id <your-team> --github-login <your-name>.\n"
         )
         return 2
 

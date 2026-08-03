@@ -80,6 +80,10 @@ if ! command -v python3 &>/dev/null; then
 fi
 echo "Using Python: $PYTHON_BIN ($($PYTHON_BIN --version 2>&1))"
 
+IS_WINDOWS=false
+case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=true ;;
+esac
+
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
@@ -206,7 +210,11 @@ print("✅ ~/.config/mimocode/tui.json (MiMo Code plugin registered)")
 MIMOCODE_TUI_PY
 
 USER_SETTINGS="$USER_CLAUDE_DIR/settings.json"
-GLOBAL_HOOK_CMD="bash $USER_CONTEST_DIR/contest-snapshot.sh"
+if [ "$IS_WINDOWS" = "true" ]; then
+  GLOBAL_HOOK_CMD="\"$PYTHON_BIN\" \"$USER_CONTEST_DIR/snapshot_core.py\" --tool claude-code"
+else
+  GLOBAL_HOOK_CMD="bash $USER_CONTEST_DIR/contest-snapshot.sh"
+fi
 
 "$PYTHON_BIN" - "$USER_SETTINGS" "$GLOBAL_HOOK_CMD" <<'MERGE_PY'
 import json, sys, os
@@ -221,7 +229,7 @@ if os.path.exists(path):
             os.rename(path, path + ".contest-backup")
             data = {}
 hooks = data.setdefault("hooks", {})
-contest_marker = "contest-shared/contest-snapshot.sh"
+contest_marker = "contest-shared"
 for event in ("Stop", "SessionEnd", "UserPromptSubmit"):
     arr = hooks.setdefault(event, [])
     if any(contest_marker in str(h) for group in arr for h in group.get("hooks", [])):
@@ -249,14 +257,25 @@ set -eu
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 if [ -z "$REPO_ROOT" ]; then
-  echo "❌ contest-snapshot must be run from inside your demo repo" >&2
+  echo "contest-snapshot must be run from inside your demo repo" >&2
   exit 2
 fi
 
-EXPORT_PY="$REPO_ROOT/../.claude/skills/contest-log-collector/tools/export-session.py"
-if [ ! -f "$EXPORT_PY" ]; then
-  echo "❌ cannot locate export-session.py at $EXPORT_PY" >&2
-  echo "   Did 'repo sync' pull the .claude tools repo as a sibling?" >&2
+REL="skills/contest-log-collector/tools/export-session.py"
+CANDIDATES=(
+  "$REPO_ROOT/../.claude/$REL"
+  "$REPO_ROOT/.claude/$REL"
+  "$HOME/.claude/$REL"
+  "$HOME/.opencode/$REL"
+)
+EXPORT_PY=""
+for c in "${CANDIDATES[@]}"; do
+  if [ -f "$c" ]; then EXPORT_PY="$c"; break; fi
+done
+if [ -z "$EXPORT_PY" ]; then
+  echo "cannot locate export-session.py in any of:" >&2
+  for c in "${CANDIDATES[@]}"; do echo "  $c" >&2; done
+  echo "Did 'repo sync' pull the .claude tools repo?" >&2
   exit 2
 fi
 
