@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import sqlite3
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -223,6 +224,199 @@ def cmd_list(args, sessions: list[dict]) -> int:
     return 0
 
 
+def load_backfill_env() -> tuple[str, str] | None:
+    env_vars = subprocess.check_output(
+        ["bash", "-c",
+         "source ~/.claude/contest-collector.env 2>/dev/null && "
+         "echo \"TEAM_ID=${TEAM_ID:-}\" && echo \"GITHUB_LOGIN=${GITHUB_LOGIN:-}\""],
+        text=True,
+    ).strip()
+    env_map = dict(line.split("=", 1) for line in env_vars.splitlines() if "=" in line)
+    team_id = env_map.get("TEAM_ID", "").strip()
+    github_login = env_map.get("GITHUB_LOGIN", "").strip()
+    if not team_id:
+        sys.stderr.write("TEAM_ID not found. Run install.sh first.\n")
+        return None
+    if not github_login:
+        sys.stderr.write("GITHUB_LOGIN not found in ~/.claude/contest-collector.env. "
+                         "Re-run install.sh with --github-login <your-name>.\n")
+        return None
+    return team_id, github_login
+
+
+def backfill_claude_code(dest: Path, team_id: str, github_login: str) -> int:
+    claude_projects = Path.home() / ".claude" / "projects"
+    if not claude_projects.is_dir():
+        return 0
+    skill_root = Path(__file__).resolve().parent.parent
+    core_py = skill_root / "adapters" / "shared" / "snapshot_core.py"
+    if not core_py.exists():
+        return 0
+    transcripts = sorted(claude_projects.glob("*/*.jsonl"))
+    if not transcripts:
+        return 0
+    print(f"[claude-code] scanning {len(transcripts)} transcript(s) in {claude_projects}")
+    child_env = {**subprocess.os.environ, "TEAM_ID": team_id,
+                 "GITHUB_LOGIN": github_login, "CWD": str(dest)}
+    success = 0
+    for t in transcripts:
+        sid = t.stem
+        payload = json.dumps({
+            "session_id": sid, "cwd": str(dest),
+            "transcript_path": str(t), "hook_event_name": "SessionEnd",
+        })
+        try:
+            result = subprocess.run(
+                [sys.executable, str(core_py), "--tool", "claude-code"],
+                input=payload, text=True, capture_output=True,
+                env=child_env, cwd=str(dest),
+            )
+            if result.returncode == 0 and "captured" in result.stderr:
+                success += 1
+                print(f"  [claude-code] {sid[:12]}  captured")
+        except Exception as e:
+            print(f"  [claude-code] {sid[:12]}  ERROR: {e}")
+    return success
+
+
+def _millis_to_iso(millis) -> str:
+    try:
+        dt = datetime.fromtimestamp(int(millis) / 1000, tz=timezone.utc)
+        return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
+    except Exception:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def _sqlite_session_to_events(conn, session_id, team_id, github_login, tool):
+    messages = conn.execute(
+        "SELECT id, time_created, data FROM message WHERE session_id=? ORDER BY time_created, id",
+        (session_id,),
+    ).fetchall()
+    if not messages:
+        return []
+    events = []
+    seq = 0
+    for msg in messages:
+        try:
+            mdata = json.loads(msg["data"])
+        except Exception:
+            continue
+        role = mdata.get("role", "user")
+        if role not in ("user", "assistant", "system", "tool"):
+            role = "user"
+        ts = _millis_to_iso(msg["time_created"])
+        model = (mdata.get("model") or {}).get("modelID")
+        parts = conn.execute(
+            "SELECT data FROM part WHERE message_id=? ORDER BY time_created, id",
+            (msg["id"],),
+        ).fetchall()
+        text_chunks = []
+        for p in parts:
+            try:
+                pdata = json.loads(p["data"])
+            except Exception:
+                continue
+            if pdata.get("type") == "text":
+                t = pdata.get("text", "")
+                if t:
+                    text_chunks.append(t)
+        text = "\n".join(text_chunks).strip()
+        if not text:
+            continue
+        ev = {
+            "schema_version": "1.0", "session_id": session_id,
+            "team_id": team_id, "github_login": github_login,
+            "tool": tool, "seq": seq, "ts": ts, "role": role, "text": text,
+        }
+        if model and role == "assistant":
+            ev["model"] = model
+        events.append(ev)
+        seq += 1
+    return events
+
+
+def _sqlite_write_manifest(dest, github_login, team_id, tool, session_id, events, rel_path):
+    member_dir = dest / "logs" / github_login
+    manifest_path = member_dir / "manifest.json"
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            manifest = {}
+    else:
+        manifest = {}
+    manifest.setdefault("schema_version", "1.0")
+    manifest["team_id"] = team_id
+    manifest["github_login"] = github_login
+    manifest.setdefault("generator", f"backfill-sqlite@{tool}")
+    sessions = manifest.setdefault("sessions", [])
+    entry = next((s for s in sessions if s.get("session_id") == session_id), None)
+    new_entry = {
+        "session_id": session_id, "tool": tool,
+        "started_at": events[0]["ts"], "last_event_at": events[-1]["ts"],
+        "event_count": len(events), "file_path": rel_path,
+        "collection_mode": "backfill-sqlite", "health": "ok",
+    }
+    if entry:
+        entry.update(new_entry)
+    else:
+        sessions.append(new_entry)
+    manifest["updated_at"] = datetime.now(timezone.utc).isoformat()
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _find_workspace_root(start: Path) -> Path | None:
+    cur = start.resolve()
+    for candidate in [cur, *cur.parents]:
+        if (candidate / ".repo").is_dir():
+            return candidate
+    return None
+
+
+def backfill_sqlite_db(db_path, tool, workspace_root, dest, team_id, github_login):
+    if not db_path.is_file():
+        return 0
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    except sqlite3.Error as e:
+        sys.stderr.write(f"[{tool}] cannot open {db_path}: {e}\n")
+        return 0
+    conn.row_factory = sqlite3.Row
+    workspace_str = str(workspace_root.resolve())
+    try:
+        rows = conn.execute(
+            "SELECT id, directory FROM session ORDER BY time_created"
+        ).fetchall()
+    except sqlite3.Error as e:
+        sys.stderr.write(f"[{tool}] cannot read session table: {e}\n")
+        conn.close()
+        return 0
+    matched = [r for r in rows if r["directory"] and str(Path(r["directory"]).resolve()).startswith(workspace_str)]
+    if not matched:
+        conn.close()
+        print(f"[{tool}] no sessions in workspace {workspace_root} (scanned {len(rows)})")
+        return 0
+    print(f"[{tool}] found {len(matched)} session(s) inside workspace (out of {len(rows)} total)")
+    success = 0
+    for s in matched:
+        sid = s["id"]
+        events = _sqlite_session_to_events(conn, sid, team_id, github_login, tool)
+        if not events:
+            continue
+        date_str = events[0]["ts"][:10]
+        rel_path = f"logs/{github_login}/{date_str}/{tool}__{sid}.jsonl"
+        jsonl_path = dest / rel_path
+        jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+        with jsonl_path.open("w", encoding="utf-8") as f:
+            for e in events:
+                f.write(json.dumps(e, ensure_ascii=False) + "\n")
+        _sqlite_write_manifest(dest, github_login, team_id, tool, sid, events, rel_path)
+        success += 1
+        print(f"  [{tool}] {sid[:20]}  wrote {len(events)} event(s) -> {rel_path}")
+    conn.close()
+    return success
+
+
 def cmd_backfill(args) -> int:
     dest = Path(args.dest) if args.dest else repo_root()
     if dest is None:
@@ -236,77 +430,30 @@ def cmd_backfill(args) -> int:
             print(f"[--force] wiping staging at {staging}")
             shutil.rmtree(staging)
 
-    claude_projects = Path.home() / ".claude" / "projects"
-    if not claude_projects.is_dir():
-        sys.stderr.write(f"No Claude Code history found at {claude_projects}\n")
-        return 1
-
-    skill_root = Path(__file__).resolve().parent.parent
-    core_py = skill_root / "adapters" / "shared" / "snapshot_core.py"
-    if not core_py.exists():
-        sys.stderr.write(f"Cannot find snapshot_core.py at {core_py}\n")
-        return 1
-
-    transcripts = sorted(claude_projects.glob("*/*.jsonl"))
-    if not transcripts:
-        sys.stderr.write("No transcript files found in Claude Code history.\n")
-        return 0
-
-    env_vars = subprocess.check_output(
-        ["bash", "-c",
-         "source ~/.claude/contest-collector.env 2>/dev/null && "
-         "echo \"TEAM_ID=${TEAM_ID:-}\" && echo \"GITHUB_LOGIN=${GITHUB_LOGIN:-}\""],
-        text=True,
-    ).strip()
-    env_map = dict(line.split("=", 1) for line in env_vars.splitlines() if "=" in line)
-    team_id = env_map.get("TEAM_ID", "").strip()
-    github_login = env_map.get("GITHUB_LOGIN", "").strip()
-    if not team_id:
-        sys.stderr.write("TEAM_ID not found. Run install.sh first.\n")
+    env = load_backfill_env()
+    if env is None:
         return 2
-    if not github_login:
-        sys.stderr.write("GITHUB_LOGIN not found in ~/.claude/contest-collector.env. "
-                         "Re-run install.sh with --github-login <your-name>.\n")
-        return 2
+    team_id, github_login = env
 
-    print(f"Found {len(transcripts)} transcript(s) in Claude Code history.")
+    workspace = _find_workspace_root(dest) or dest
     print(f"Destination: {dest}/logs/")
+    print(f"Workspace:   {workspace}")
     print(f"GitHub login: {github_login}")
     print()
 
-    child_env = {**subprocess.os.environ, "TEAM_ID": team_id,
-                 "GITHUB_LOGIN": github_login, "CWD": str(dest)}
+    source = getattr(args, "source", "all") or "all"
+    total = 0
+    if source in ("all", "claude"):
+        total += backfill_claude_code(dest, team_id, github_login)
+    if source in ("all", "sqlite", "opencode"):
+        db = Path.home() / ".local" / "share" / "opencode" / "opencode.db"
+        total += backfill_sqlite_db(db, "opencode", workspace, dest, team_id, github_login)
+    if source in ("all", "sqlite", "mimocode"):
+        db = Path.home() / ".local" / "share" / "mimocode" / "mimocode.db"
+        total += backfill_sqlite_db(db, "mimocode", workspace, dest, team_id, github_login)
 
-    success = 0
-    skipped = 0
-    for t in transcripts:
-        sid = t.stem
-        payload = json.dumps({
-            "session_id": sid,
-            "cwd": str(dest),
-            "transcript_path": str(t),
-            "hook_event_name": "SessionEnd",
-        })
-        try:
-            result = subprocess.run(
-                [sys.executable, str(core_py), "--tool", "claude-code"],
-                input=payload, text=True, capture_output=True,
-                env=child_env,
-                cwd=str(dest),
-            )
-            if result.returncode == 0:
-                if "captured" in result.stderr:
-                    success += 1
-                    print(f"  ✅ {sid[:12]}  {result.stderr.strip().split('-> ')[-1] if '-> ' in result.stderr else 'ok'}")
-                else:
-                    skipped += 1
-            else:
-                print(f"  ⚠️  {sid[:12]}  {result.stderr.strip()[:80]}")
-        except Exception as e:
-            print(f"  ❌ {sid[:12]}  {e}")
-
-    print(f"\nBackfill done: {success} imported, {skipped} skipped (already captured or empty).")
-    if success > 0:
+    print(f"\nBackfill done: {total} session(s) imported.")
+    if total > 0:
         print("Next: git add logs/ && git commit -s -m 'logs: backfill history' && git push")
     return 0
 
@@ -332,6 +479,13 @@ def main() -> int:
                    help="Scan Claude Code history (~/.claude/projects/) and "
                         "re-process all transcripts. Recovers sessions that "
                         "were created before the hook was installed.")
+    p.add_argument("--source", metavar="SRC", default="all",
+                   choices=["all", "claude", "sqlite", "opencode", "mimocode"],
+                   help="With --backfill, which source to scan. "
+                        "'all' (default) scans Claude Code + OpenCode + MiMoCode; "
+                        "'claude' scans only ~/.claude/projects/; "
+                        "'sqlite' scans OpenCode + MiMoCode SQLite; "
+                        "'opencode' or 'mimocode' scans just that one.")
     p.add_argument("--force", action="store_true",
                    help="With --backfill, wipe the local staging first so all "
                         "transcripts are re-processed even if they were "
