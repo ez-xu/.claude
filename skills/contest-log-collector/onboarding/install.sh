@@ -230,7 +230,7 @@ if os.path.exists(path):
             data = {}
 hooks = data.setdefault("hooks", {})
 contest_marker = "contest-shared"
-for event in ("Stop", "SessionEnd", "UserPromptSubmit"):
+for event in ("Stop", "SessionEnd"):
     arr = hooks.setdefault(event, [])
     if any(contest_marker in str(h) for group in arr for h in group.get("hooks", [])):
         continue

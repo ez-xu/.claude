@@ -34,7 +34,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from get_github_login import resolve_github_login
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 SCHEMA_VERSION = "1.0"
 
 DEFAULT_REDACT_RULES = [
@@ -293,31 +293,6 @@ def write_manifest(member_dir: Path, manifest: dict, team_id: str, github_login:
         report_error(member_dir, "manifest_write", {"tool": tool, "path": str(path)}, e)
 
 
-CONSENT_INTERVAL = 10
-CONSENT_YES = {"yes", "y", "upload", "ok", "sure", "1", "true"}
-CONSENT_NO = {"no", "n", "skip", "cancel", "decline", "0", "false"}
-
-
-def consent_file(member_dir: Path, session_id: str) -> Path:
-    return member_dir / "consent" / f"{session_id}.json"
-
-
-def read_consent(member_dir: Path, session_id: str) -> str:
-    f = consent_file(member_dir, session_id)
-    if not f.exists():
-        return "unknown"
-    try:
-        return json.loads(f.read_text(encoding="utf-8")).get("status", "unknown")
-    except Exception:
-        return "unknown"
-
-
-def write_consent(member_dir: Path, session_id: str, status: str) -> None:
-    f = consent_file(member_dir, session_id)
-    f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(json.dumps({"status": status, "ts": iso_now()}, ensure_ascii=False), encoding="utf-8")
-
-
 def get_repo_root() -> Path | None:
     try:
         out = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], stderr=subprocess.PIPE, text=True)
@@ -407,30 +382,7 @@ def process_claude_stdin(stdin_data: dict, tool: str, team_id: str) -> int:
     hook_event = stdin_data.get("hook_event_name", "Stop")
 
     if tool == "claude-code" and hook_event == "UserPromptSubmit":
-        user_prompt = (stdin_data.get("prompt") or "").strip().lower()
-        current = read_consent(member_dir, session_id)
-        if current == "asked" and user_prompt:
-            if any(kw in user_prompt for kw in CONSENT_YES):
-                write_consent(member_dir, session_id, "consented")
-                sys.stderr.write("[session-log] consent: yes, will auto-upload.\n")
-            elif any(kw in user_prompt for kw in CONSENT_NO):
-                write_consent(member_dir, session_id, "declined")
-                sys.stderr.write("[session-log] consent: no, will not upload this session.\n")
         return 0
-
-    if tool == "claude-code" and hook_event == "Stop":
-        consent = read_consent(member_dir, session_id)
-        if consent == "unknown":
-            write_consent(member_dir, session_id, "asked")
-            print(json.dumps({
-                "decision": "block",
-                "reason": "Ask the user: this session is inside an openvela workspace. "
-                          "Do you want to upload AI coding logs to the contest repo? "
-                          "Reply 'yes' to upload, 'no' to skip."
-            }))
-            return 0
-        if consent in ("declined", "asked"):
-            return 0
 
     if not transcript_path_str:
         sys.stderr.write(
@@ -521,22 +473,9 @@ def process_claude_stdin(stdin_data: dict, tool: str, team_id: str) -> int:
         team_id, github_login, tool,
     )
 
-    consent = read_consent(member_dir, session_id)
-    if consent == "consented":
-        since = entry.get("events_since_notice", 0) + result["written"]
-        if since >= CONSENT_INTERVAL:
-            sys.stderr.write(
-                f"[session-log] uploaded {since} events to logs/ "
-                f"(total {new_event_count}). Remember to git push.\n"
-            )
-            entry["events_since_notice"] = 0
-        else:
-            entry["events_since_notice"] = since
-        write_manifest(member_dir, manifest, team_id, github_login, tool)
-    else:
-        sys.stderr.write(
-            f"[session-log] captured {result['written']} event(s) -> {rel_path}\n"
-        )
+    sys.stderr.write(
+        f"[session-log] captured {result['written']} event(s) -> {rel_path}\n"
+    )
 
     return 0
 
