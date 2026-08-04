@@ -442,10 +442,9 @@ bash ../.claude/skills/contest-log-collector/onboarding/install.sh \
 claude
 ```
 
-第一次对话结束时,Claude Code 会问你:
-> "Do you want to upload AI coding logs? Reply 'yes' or 'no'."
+**进入 openvela 工作区(有 `.repo/` 目录)= 视同同意采集**,后续每次对话结束会自动写入本地仓的 `logs/` 目录。工具**不会**自动 push,提交完全由你控制。
 
-回答 `yes` → 后续自动上传;回答 `no` → 这个会话不上传。
+不想让某次对话被采集?→ 到 openvela 工作区**外面**跟 AI 聊即可,工具会静默。
 
 OpenCode / MiMo Code 用户同理,直接在 Git Bash 里运行即可。
 

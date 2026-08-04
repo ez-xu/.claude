@@ -20,48 +20,17 @@ import { platform, homedir } from "os";
 import { execFileSync } from "child_process";
 import { resolveGithubLogin } from "../shared/get_github_login.js";
 
-const VERSION = "1.3.0";
+const VERSION = "1.4.0";
 const SCHEMA_VERSION = "1.0";
 const TOOL_ID = "opencode";
 
-const CONSENT_INTERVAL = 10;
-const CONSENT_YES = new Set(["yes", "y", "upload", "ok", "sure", "1", "true"]);
-const CONSENT_NO = new Set(["no", "n", "skip", "cancel", "decline", "0", "false"]);
-
-function consentFilePath(githubLogin, sessionId) {
-  return join(homedir(), ".claude", "contest-collector-staging", githubLogin, "consent", `${sessionId}.json`);
-}
-
-function readConsent(githubLogin, sessionId) {
-  const f = consentFilePath(githubLogin, sessionId);
-  if (!existsSync(f)) return "unknown";
-  try {
-    return JSON.parse(readFileSync(f, "utf8")).status || "unknown";
-  } catch {
-    return "unknown";
-  }
-}
-
-function writeConsent(githubLogin, sessionId, status) {
-  const f = consentFilePath(githubLogin, sessionId);
-  mkdirSync(dirname(f), { recursive: true });
-  writeFileSync(f, JSON.stringify({ status, ts: new Date().toISOString() }));
-}
-
-function findLastUserText(messages) {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m.role !== "user") continue;
-    const c = m.content;
-    if (typeof c === "string") return c.trim();
-    if (Array.isArray(c)) {
-      for (const b of c) {
-        if (b && b.type === "text" && b.text) return b.text.trim();
-      }
-    }
-  }
-  return null;
-}
+// Consent model: entering an openvela workspace (dir with `.repo/`) is itself
+// the opt-in signal — contest rules require log upload once inside the workspace.
+// Users who do not want to upload simply keep their session outside the workspace.
+// We do NOT prompt at runtime because OpenCode/MiMoCode TUI has no reliable way
+// to display a blocking question or capture a yes/no reply (only non-blocking
+// stderr toasts), which led to the prompt looping every N turns without a way
+// to answer. See PR feat-remove-consent-prompt.
 
 const GIT_CMD = platform() === "win32" ? "git.exe" : "git";
 
@@ -485,38 +454,6 @@ async function onSessionIdle(client, repoRoot, sessionId) {
     return;
   }
   if (messages.length === 0) {
-    return;
-  }
-
-  const consent = readConsent(githubLogin, sessionId);
-  if (consent === "unknown") {
-    writeConsent(githubLogin, sessionId, "asked");
-    console.error(
-      "[session-log] This session is inside an openvela workspace. " +
-      "Do you want to upload AI coding logs to the contest repo? " +
-      "Reply 'yes' to upload, 'no' to skip."
-    );
-    return;
-  }
-  if (consent === "asked") {
-    const reply = findLastUserText(messages);
-    if (reply) {
-      const lower = reply.toLowerCase();
-      if (CONSENT_YES.has(lower)) {
-        writeConsent(githubLogin, sessionId, "consented");
-        console.error("[session-log] consent: yes, will auto-upload.");
-      } else if (CONSENT_NO.has(lower)) {
-        writeConsent(githubLogin, sessionId, "declined");
-        console.error("[session-log] consent: no, will not upload this session.");
-        return;
-      } else {
-        return;
-      }
-    } else {
-      return;
-    }
-  }
-  if (consent === "declined") {
     return;
   }
 
