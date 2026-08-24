@@ -249,3 +249,109 @@
 ```
 同步接口由 media_focus.c 提供。该模块支持 media_focus_request、media_focus_abandon 等接口。
 ```
+
+## 24 上下半部术语（Upper Half / Lower Half）
+
+openvela 驱动模型中"上半部/下半部"的英文写法，全书统一为 **`Upper Half` / `Lower Half`**：两个单词、中间一个半角空格、首字母大写。
+
+**判定规则（按用途区分，不要一刀切替换）：**
+
+- **正文里作为概念名出现**（通常是中文术语的英文括注）→ 统一写 `Upper Half` / `Lower Half`
+    - 正例：`上半部分（Upper Half）由 openvela 系统提供通用实现，下半部分（Lower Half）由芯片厂商实现`
+    - 反例：`LowerHalf`、`Lower-Half`、`lower-half`、`Lower half`
+- **代码标识符** → **一律保持原样，禁止替换**。这些是真实的结构体名、文件名、函数名和变量名，改了示例代码就编译不过、路径就找不到文件：
+    - 结构体：`audio_lowerhalf_s`、`netdev_lowerhalf_s`
+    - 头文件：`nuttx/include/nuttx/net/netdev_lowerhalf.h`
+    - 函数：`netdev_lower_register`、`fb_register_device`
+    - 变量/宏：`lower_half`、`priv->lower`
+- **章节标题**同样适用正文规则，例如 `10.3.3 Lower-Half 驱动实现` 应改为 `10.3.3 Lower Half 驱动实现`
+
+**选定 `Lower Half` 的依据**：该写法在全书跨章节分布最广（第 3、5、9、13 章均使用），且与 `Upper Half` 天然成对；`Lower-Half` 虽出现次数接近，但集中在单一章节内。
+
+**审校操作要点**：
+
+用查找替换处理时**必须勾选"区分大小写"，并逐个确认后再替换**，不可全局一键替换。典型事故：把 `lowerhalf` 一并扫入后，`audio_lowerhalf_s` 会变成 `audio_Upper Half_s`，示例代码直接失效。
+
+**排查命令**（对导出的 docx 产物做全书清点，可快速定位各章写法分布）：
+
+```bash
+python3 - <<'EOF'
+import re, zipfile
+from pathlib import Path
+from collections import Counter, defaultdict
+pat = re.compile(r'(Lower[\s\-_]?Half|Upper[\s\-_]?Half|lower[\s\-_]?half|upper[\s\-_]?half)')
+per = defaultdict(Counter)
+for f in sorted(Path(".").glob("*.docx")):
+    if f.name.startswith(("~", ".")):
+        continue
+    x = zipfile.ZipFile(f).read("word/document.xml").decode("utf-8")
+    for p in re.findall(r'<w:p[ >].*?</w:p>', x, re.S):
+        t = "".join(re.findall(r'<w:t[^>]*>(.*?)</w:t>', p, re.S))
+        for m in pat.finditer(t):
+            per[f.name][m.group(0)] += 1
+for k in sorted(per):
+    print(k, dict(per[k]))
+EOF
+```
+
+## 25 代码仓库与文档链接
+
+正文中引用 openvela 代码仓库和官方文档时，**全书统一使用 GitHub 地址**。
+
+**域名规则：**
+
+- 统一为 `https://github.com/open-vela/<repo>`
+- 不使用 `gitee.com`、`gitcode.com`、`gitlink.org.cn` 等镜像域名
+
+**分支规则：换域名时不要顺手改分支**
+
+`open-vela` 组织内的分支命名并不统一，不能按"组织惯例"推断：
+
+- 内容仓库默认分支是 `dev`：`docs`、`nuttx`、`nuttx-apps`、`frameworks`、`packages`、`manifests`、`external`、`tests`、`vendor_openvela` 等
+- 少数基础设施仓库默认分支是 `trunk`：`public-actions`、`.github`
+- `docs` 仓库上 `dev` 与 `trunk` **并存且内容同步**，同一路径两个分支的 blob 一致，两种链接都能访问
+
+因此审校时的正确动作是：**只把域名从 `gitee.com` 换成 `github.com`，分支段原样保留**。原链接写 `trunk` 就保留 `trunk`，写 `dev` 就保留 `dev`。
+
+| 反例（顺手把分支也改了）                                                                     | 正例（只换域名）                                                                               |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `https://github.com/open-vela/docs/blob/dev/zh-cn/quickstart/openvela_ubuntu_quick_start.md` | `https://github.com/open-vela/docs/blob/trunk/zh-cn/quickstart/openvela_ubuntu_quick_start.md` |
+
+反例这个改法本身不一定坏链（`docs` 上两个分支同步），但它是一次没有依据的改动：一旦某个仓库只有 `trunk` 没有 `dev`，同样的手法就会把好链接改成 404。少一个自作聪明的动作，就少一类翻车。
+
+确实需要确认分支时，查该仓库的默认分支或直接访问验证，不要凭印象。
+
+**例外：前言与环境搭建章节的多平台说明**
+
+以下两类位置的镜像地址**不做替换**，因为它们是功能性信息而非引用性链接：
+
+- **前言**中介绍"代码托管平台"时并列列出的 GitHub / Gitee / GitCode / GitLink
+- **环境搭建章节**中 `repo init` 命令给出的可选源（国内读者用 Gitee 源加速）
+
+这两处建议保留镜像地址，并补一句说明：正文中的代码链接统一使用 GitHub 地址，Gitee、GitCode 与 GitLink 为同步镜像。
+
+**审校操作要点**：
+
+飞书文档中的链接如果是超链接形式，**改显示文字不等于改跳转地址**。稳妥做法是把整段链接删掉重打，改完逐个点击确认跳转正确。核查时要同时检查正文和超链接关系表两处：
+
+```bash
+python3 - <<'EOF'
+import re, zipfile
+from pathlib import Path
+pat = re.compile(r'https?://[\w.]*(?:gitee\.com|gitcode\.com|gitlink\.org\.cn)[^\s"<>）)]*')
+for f in sorted(Path(".").glob("*.docx")):
+    if f.name.startswith(("~", ".")):
+        continue
+    z = zipfile.ZipFile(f)
+    hits = set()
+    for n in ("word/document.xml", "word/_rels/document.xml.rels"):
+        try:
+            hits |= set(pat.findall(z.read(n).decode("utf-8")))
+        except KeyError:
+            pass
+    for u in sorted(hits):
+        print(f.name, u)
+EOF
+```
+
+只查正文会漏掉"文字已改成 github、跳转仍指向 gitee"这种情况。
