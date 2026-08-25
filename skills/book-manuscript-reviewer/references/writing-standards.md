@@ -303,23 +303,40 @@ EOF
 - 统一为 `https://github.com/open-vela/<repo>`
 - 不使用 `gitee.com`、`gitcode.com`、`gitlink.org.cn` 等镜像域名
 
-**分支规则：换域名时不要顺手改分支**
+**分支规则：统一使用 `trunk`**
 
-`open-vela` 组织内的分支命名并不统一，不能按"组织惯例"推断：
+依据来自书稿自己：前言的"本书基于的代码基线"一节声明，"本书全部源码分析与实战案例，均基于 openvela 开源社区上的主干稳定分支（trunk）"。正文里的代码链接必须与这个声明一致，因此分支段一律写 `trunk`，原链接写 `dev` 的要改成 `trunk`。
 
-- 内容仓库默认分支是 `dev`：`docs`、`nuttx`、`nuttx-apps`、`frameworks`、`packages`、`manifests`、`external`、`tests`、`vendor_openvela` 等
-- 少数基础设施仓库默认分支是 `trunk`：`public-actions`、`.github`
-- `docs` 仓库上 `dev` 与 `trunk` **并存且内容同步**，同一路径两个分支的 blob 一致，两种链接都能访问
+`open-vela` 组织内两个分支并存，分工不同：
 
-因此审校时的正确动作是：**只把域名从 `gitee.com` 换成 `github.com`，分支段原样保留**。原链接写 `trunk` 就保留 `trunk`，写 `dev` 就保留 `dev`。
+- `dev` 是各内容仓库的**默认分支**，日常合入都发生在这里
+- `trunk` 是**主干稳定分支**，也是本书的基线；它按节奏从 `dev` 收敛，因此内容通常落后于 `dev`
 
-| 反例（顺手把分支也改了）                                                                     | 正例（只换域名）                                                                               |
+实测（2026-07）`docs`、`nuttx`、`nuttx-apps`、`frameworks`、`packages`、`manifests`、`packages_apps` 都有 `trunk`。`docs` 上两个分支同步，同一路径的 blob 一致；`frameworks`、`packages` 的 `trunk` 头部比 `dev` 落后一个多月，这是稳定分支的正常状态，不是仓库坏了。
+
+| 反例                                                                                         | 正例                                                                                           |
 | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `https://github.com/open-vela/docs/blob/dev/zh-cn/quickstart/openvela_ubuntu_quick_start.md` | `https://github.com/open-vela/docs/blob/trunk/zh-cn/quickstart/openvela_ubuntu_quick_start.md` |
 
-反例这个改法本身不一定坏链（`docs` 上两个分支同步），但它是一次没有依据的改动：一旦某个仓库只有 `trunk` 没有 `dev`，同样的手法就会把好链接改成 404。少一个自作聪明的动作，就少一类翻车。
+**改完必须逐条验证可达，不能批量替换就收工。** 正因为 `trunk` 落后于 `dev`，会存在"文件只在 `dev` 上有、`trunk` 上还没有"的情况。实测例子：`packages_apps` 的 `wearable/player/README.md` 在 `dev` 上存在，在 `trunk` 上返回 404。
 
-确实需要确认分支时，查该仓库的默认分支或直接访问验证，不要凭印象。
+遇到这种链接**不要退回 `dev`**。它说明书稿引用了尚未进入稳定分支的内容，与前言声明的基线冲突。正确处理是报给作者，由作者三选一：
+
+- 换成 `trunk` 上已有的等价文件
+- 删掉链接，改为文字描述
+- 推动该内容合入 `trunk`
+
+偷偷把这一条改回 `dev`，等于在书里留下一处与前言自相矛盾的引用——读者按前言拉 `trunk` 源码，却打不开正文给的链接。
+
+逐条验证：
+
+```bash
+# links.txt 每行一个待验证 URL
+while read -r u; do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -m 20 -L "$u")
+  printf '%s  %s\n' "$code" "$u"
+done < links.txt
+```
 
 **例外：前言与环境搭建章节的多平台说明**
 
@@ -328,7 +345,14 @@ EOF
 - **前言**中介绍"代码托管平台"时并列列出的 GitHub / Gitee / GitCode / GitLink
 - **环境搭建章节**中 `repo init` 命令给出的可选源（国内读者用 Gitee 源加速）
 
-这两处建议保留镜像地址，并补一句说明：正文中的代码链接统一使用 GitHub 地址，Gitee、GitCode 与 GitLink 为同步镜像。
+这两处建议保留多平台地址，但要把四个平台的分工写清楚，不能平级并列。真实拓扑是两层：
+
+- **GitHub 与 Gitee 双向同步**，任一侧提交的贡献都会同步到另一侧，两边都能提 PR
+- **GitCode 与 GitLink 是代码镜像**，只读，用于获取代码
+
+四平台并列写成"四大平台同步开源"有两个问题：一是"四大"是没有依据的价值判断，四家体量差着数量级；二是把上游与镜像拉平，读者可能在镜像平台提 PR 然后等不到任何回应。
+
+地址（实测均可达）：`https://github.com/open-vela`、`https://gitee.com/open-vela`、`https://gitcode.com/open-vela`、`https://www.gitlink.org.cn/openvela`。注意 GitLink 上的组织名是 `openvela`（无连字符），另外三家是 `open-vela`，这不是错字。
 
 **审校操作要点**：
 
